@@ -218,8 +218,18 @@ export function PetOverlay({ onOpenSettings, onDismissSpeech, size = 96, storage
           <div style={{ lineHeight: 1.4 }}>{currentSpeech ? currentSpeech.text : visibleLine}</div>
           <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
             {currentSpeech?.link && (
-              <a href={currentSpeech.link} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: active.accent, textDecoration: 'none', opacity: 0.9 }}>
-                View in chat →
+              <a
+                href={currentSpeech.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 3, fontSize: 11,
+                  color: active.accent, textDecoration: 'none',
+                  border: `1px solid ${active.accent}66`, borderRadius: 4,
+                  padding: '2px 6px', fontWeight: 600,
+                }}
+              >
+                Open →
               </a>
             )}
             {onOpenSettings && (

@@ -1,10 +1,10 @@
-# Allow cross-origin script-tag and ES-module loads from any site.
-# CF Pages already sets a sane default; this is explicit so we control it.
+# Root path (latest): short cache so breaking changes propagate quickly.
 /*
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=300
 
-# Long-lived cache for the immutable bundles. Bump version for cache-bust.
-/v/*
+# Versioned paths (e.g. /v0.1/, /v1/, /v2/): immutable, long cache.
+# Pin to a versioned URL in production for stability + cacheability.
+/v*/*
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=31536000, immutable

@@ -16,6 +16,10 @@ function readScriptConfig(): ScriptConfig {
     accent: script.dataset.accent,
     imageUrl: script.dataset.imageUrl,
     storageKey: script.dataset.storageKey,
+    // Presence of `data-use-codex-atlas` (with any value other than "false")
+    // applies the standard 8×9 Codex layout to imageUrl. Bare attribute
+    // (`data-use-codex-atlas`) reads as empty string, treated as truthy.
+    useCodexAtlas: 'useCodexAtlas' in script.dataset && script.dataset.useCodexAtlas !== 'false',
     autoMount: script.dataset.autoMount !== 'false',
   };
 }

@@ -11,7 +11,7 @@ Live demo: **https://agent-pet.pages.dev**
 ### 1. CDN script tag (auto-mount)
 
 ```html
-<script src="https://agent-pet.pages.dev/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
         data-name="Rex" data-glyph="🦖" data-accent="#e74c3c"></script>
 <script>
   AgentPet.setState('thinking');
@@ -19,7 +19,19 @@ Live demo: **https://agent-pet.pages.dev**
 </script>
 ```
 
-For production, pin the bundle to a SHA-384 hash so a compromised CDN can't ship altered code (see [Subresource Integrity](#subresource-integrity-sri) below).
+The path is **versioned** — pin to `/v0.1/` (or whatever the latest stable version is) for stable URLs that won't break on a future release. The bare path `https://agent-pet.pages.dev/agent-pet-widget.iife.js` is "latest" and may include breaking changes. See [Versioning](#versioning) below.
+
+For production, also pin the bundle to a SHA-384 hash so a compromised CDN can't ship altered code (see [Subresource Integrity](#subresource-integrity-sri) below).
+
+For an animated atlas pet via script tag alone, use both `data-image-url` and `data-use-codex-atlas`:
+
+```html
+<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+        data-name="Guga"
+        data-image-url="https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/guga/spritesheet.webp"
+        data-use-codex-atlas
+        data-accent="#7eb8da"></script>
+```
 
 ### 2. Self-hosted
 
@@ -121,6 +133,24 @@ By default, including the script tag auto-boots the widget. To take full control
   AgentPet.on('stateChange', s => analytics.track('pet_state', s));
   document.addEventListener('app-ready', () => AgentPet.mount());
 </script>
+```
+
+## Versioning
+
+The CDN ships the bundle at two paths:
+
+| Path | Cache | Stability |
+|---|---|---|
+| `/agent-pet-widget.iife.js` | 5 min | "latest" — may break on breaking releases |
+| `/v0.1/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.1, never breaks |
+
+Pin to a versioned path in production. Pre-1.0, every minor release (`0.1` → `0.2`) may be breaking; once the API stabilizes at 1.0, the version bucket becomes major-only (`/v1/`, `/v2/`).
+
+To discover what "latest" currently resolves to:
+
+```bash
+curl -s https://agent-pet.pages.dev/version.json
+# {"version":"0.1.0","bucket":"v0.1","latestPath":"/"}
 ```
 
 ## Subresource Integrity (SRI)

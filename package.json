@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "build": "vite build && vite build --mode widget && node scripts/sri.mjs",
-    "build:pages": "pnpm build && cp -r dist/* public/",
+    "build:pages": "pnpm build && node scripts/build-pages.mjs",
     "build:es": "vite build",
     "build:widget": "vite build --mode widget",
     "test": "vitest run",
