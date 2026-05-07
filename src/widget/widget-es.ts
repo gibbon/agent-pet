@@ -11,6 +11,12 @@
 export { createAgentPetAPI } from './mount';
 export { createRegistry } from './registry';
 export { attachObservers, parseObserveAttr, OBSERVE_DEFAULTS } from './observer';
+// Pet source providers
+export type { PetProvider, PetProviderRegistry } from '../core/providers/types';
+export { codexProvider } from '../core/providers/codex';
+export { hatcheryProvider } from '../core/providers/hatchery';
+export { defaultProviderRegistry } from '../core/providers/registry';
+
 export type {
   AgentPetAPI,
   AgentPetRegistry,

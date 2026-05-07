@@ -102,4 +102,8 @@ export interface AgentPetRegistry extends AgentPetAPI {
   list(): string[];
   /** Unmount and forget a pet. */
   remove(id: string): void;
+  /** Pet *source* providers (codex-pets.net, j20 hatchery, custom). Distinct
+   *  from the multi-pet registry above — these manage URL resolution and
+   *  catalog fetching for `data-<id>-pet="..."` and the community tab. */
+  readonly providers: import('../core/providers/types').PetProviderRegistry;
 }

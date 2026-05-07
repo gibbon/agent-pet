@@ -24,7 +24,7 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });
 The fastest path — pick a pet from [codex-pets.net](https://codex-pets.net/) and reference it by id:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.6/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
@@ -42,7 +42,7 @@ Open a blank [CodePen](https://codepen.io/pen/), [JSFiddle](https://jsfiddle.net
   <button onclick="AgentPet.setState('building')">building</button>
   <button onclick="AgentPet.setState('success')">success</button>
   <button onclick="AgentPet.say('hello!', {ttl:4000})">say hello</button>
-  <script src="https://agent-pet.pages.dev/v0.6/agent-pet-widget.iife.js"
+  <script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
           data-codex-pet="homelander"></script>
 </body>
 </html>
@@ -60,7 +60,7 @@ There's also a hosted [**playground page**](https://agent-pet.pages.dev/playgrou
 - **Draggable + persistent** — position and pet selection persist via `localStorage`.
 - **9 distinct animations** — drives all rows of the Codex atlas spec (idle, thinking, building, delegating, leaving, greeting, waiting, success, error).
 - **Speech bubbles** — `AgentPet.say(text, { link })` for inline status with optional click-through.
-- **Versioned URLs** — pin to `/v0.6/` for stability; immutable + 1-year cache.
+- **Versioned URLs** — pin to `/v0.7/` for stability; immutable + 1-year cache.
 - **SRI-pinnable** — SHA-384 hashes published per release.
 - **Versatile mounting** — auto-mount or programmatic; mount into any element via `target`.
 
@@ -73,21 +73,21 @@ There's also a hosted [**playground page**](https://agent-pet.pages.dev/playgrou
 **Minimal — emoji glyph, zero config:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.6/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
         data-name="Rex" data-glyph="🦖" data-accent="#e74c3c"></script>
 ```
 
 **Animated pet from codex-pets.net by id:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.6/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
 **Your own Codex-format spritesheet:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.6/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
         data-image-url="https://your-cdn.example/your-sprite.webp"
         data-use-codex-atlas></script>
 ```
@@ -99,7 +99,7 @@ We don't bake a default spritesheet into the bundle — they're 80–150 KB each
 The bundle is plain static JS — download it, serve it from your own host:
 
 ```bash
-curl -O https://agent-pet.pages.dev/v0.6/agent-pet-widget.iife.js
+curl -O https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js
 ```
 
 Serve via your CDN, nginx, S3, GitHub Pages — anywhere. Then:
@@ -496,7 +496,7 @@ The CDN ships the bundle at multiple paths so old pins keep working forever:
 | Path | Cache | Stability |
 |---|---|---|
 | `/agent-pet-widget.iife.js` | 5 minutes | "Latest" — may break on new releases |
-| `/v0.6/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.3, never breaks |
+| `/v0.7/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.3, never breaks |
 | `/v0.2/agent-pet-widget.iife.js` | 1 year, immutable | Vanilla DOM, no multi-pet API |
 | `/v0.1/agent-pet-widget.iife.js` | 1 year, immutable | Original Preact-bundled build |
 
@@ -518,12 +518,12 @@ curl -s https://agent-pet.pages.dev/version.json
 Pin the bundle to a hash so browsers reject substituted code if the CDN is compromised:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.6/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
         integrity="sha384-..."
         crossorigin="anonymous"></script>
 ```
 
-Each release publishes hashes at `/v0.6/SRI.json`:
+Each release publishes hashes at `/v0.7/SRI.json`:
 
 ```json
 {

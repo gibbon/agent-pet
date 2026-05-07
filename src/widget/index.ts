@@ -1,17 +1,40 @@
 import { createRegistry } from './registry';
 import { parseObserveAttr, type ObserveOptions } from './observer';
+import { defaultProviderRegistry } from '../core/providers/registry';
+import { codexProvider } from '../core/providers/codex';
+import { hatcheryProvider } from '../core/providers/hatchery';
 import type { ConfigureOptions } from './api';
+
+// Built-in providers — pre-registered so `data-codex-pet="..."` and
+// `data-hatchery-pet="..."` work out of the box. Consumers register
+// custom ones via `AgentPet.providers.register({...})`.
+if (!defaultProviderRegistry.has('codex')) defaultProviderRegistry.register(codexProvider);
+if (!defaultProviderRegistry.has('hatchery')) defaultProviderRegistry.register(hatcheryProvider);
 
 interface ScriptConfig extends ConfigureOptions {
   autoMount: boolean;
   observe?: ObserveOptions;
 }
 
-// codex-pets.net storage path — `data-codex-pet="<id>"` resolves to
-// `<CODEX_STORAGE>/<id>/spritesheet.webp` and auto-applies the Codex atlas.
-// Migrated 2026-05-08 from the original Supabase storage host to codex-pets.net's
-// own /assets/pets/ path; the old supabase host stopped resolving.
-const CODEX_STORAGE = 'https://codex-pets.net/assets/pets';
+/**
+ * Scan the script tag's data-* attributes for any `data-<id>-pet="<petId>"`
+ * where `<id>` is a registered provider. Returns the first match's
+ * resolved URL + atlas mode, or null if no provider attribute is set.
+ */
+function readProviderAttr(script: HTMLScriptElement): { imageUrl: string; useCodexAtlas: boolean; petId: string } | null {
+  for (const provider of defaultProviderRegistry.list()) {
+    const datasetKey = `${provider.id}Pet`; // 'codex' → 'codexPet', 'mycorp' → 'mycorpPet'
+    const petId = script.dataset[datasetKey];
+    if (petId && provider.resolveSpritesheet) {
+      return {
+        imageUrl: provider.resolveSpritesheet(petId),
+        useCodexAtlas: provider.useCodexAtlas ?? false,
+        petId,
+      };
+    }
+  }
+  return null;
+}
 
 function readScriptConfig(): ScriptConfig {
   const script =
@@ -19,22 +42,19 @@ function readScriptConfig(): ScriptConfig {
     document.querySelector<HTMLScriptElement>('script[src*="agent-pet"]:last-of-type');
   if (!script) return { autoMount: true };
 
-  // data-codex-pet: shorthand for an animated codex-pets.net pet. Resolves
-  // the spritesheet URL + auto-applies useCodexAtlas. data-image-url and
-  // data-use-codex-atlas can still be set explicitly to override.
-  const codexPetId = script.dataset.codexPet;
+  const provider = readProviderAttr(script);
   const explicitImageUrl = script.dataset.imageUrl;
   const explicitUseAtlas = 'useCodexAtlas' in script.dataset && script.dataset.useCodexAtlas !== 'false';
 
   const observe = parseObserveAttr(script.dataset.observe);
 
   return {
-    name: script.dataset.name ?? codexPetId,
+    name: script.dataset.name ?? provider?.petId,
     glyph: script.dataset.glyph,
     accent: script.dataset.accent,
-    imageUrl: explicitImageUrl ?? (codexPetId ? `${CODEX_STORAGE}/${codexPetId}/spritesheet.webp` : undefined),
+    imageUrl: explicitImageUrl ?? provider?.imageUrl,
     storageKey: script.dataset.storageKey,
-    useCodexAtlas: explicitUseAtlas || Boolean(codexPetId),
+    useCodexAtlas: explicitUseAtlas || (provider?.useCodexAtlas ?? false),
     autoMount: script.dataset.autoMount !== 'false',
     observe: Object.keys(observe).length > 0 ? observe : undefined,
   };

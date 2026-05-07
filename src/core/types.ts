@@ -165,60 +165,20 @@ export class LocalStoragePetLibrary {
   remove(id: string): void { this.save(this.load().filter(e => e.id !== id)); }
 }
 
-// codex-pets.net (formerly hosted on Supabase). The site rolled their own
-// API at /api/pets in 2026-05-08; the previous supabase host stopped
-// resolving entirely. The pets returned now embed full spritesheetUrl
-// values (https://codex-pets.net/assets/pets/<id>/spritesheet.webp), so we
-// only need a fallback path if the API ever omits one.
-const PETSHARE_API = 'https://codex-pets.net/api/pets';
-const PETSHARE_ASSETS = 'https://codex-pets.net/assets/pets';
-const HATCHERY_LIST = 'https://j20.nz/hatchery/api/pets.json';
+// DefaultCatalogClient — back-compat alias that delegates to the provider
+// registry. New code should import { providerCatalogClient } from
+// './providers/registry' for the same behaviour with explicit registry
+// passing.
+import { defaultProviderRegistry, providerCatalogClient } from './providers/registry';
+import { codexProvider } from './providers/codex';
+import { hatcheryProvider } from './providers/hatchery';
+
+// Pre-register built-in providers on first import.
+if (!defaultProviderRegistry.has('codex')) defaultProviderRegistry.register(codexProvider);
+if (!defaultProviderRegistry.has('hatchery')) defaultProviderRegistry.register(hatcheryProvider);
 
 export class DefaultCatalogClient implements CatalogClient {
-  async fetchList(): Promise<{ pets: CatalogPet[]; rootDir?: string }> {
-    const [petshare, hatchery] = await Promise.allSettled([
-      this.fetchPetshare(),
-      this.fetchHatchery(),
-    ]);
-    const pets: CatalogPet[] = [];
-    if (petshare.status === 'fulfilled') pets.push(...petshare.value);
-    if (hatchery.status === 'fulfilled') pets.push(...hatchery.value);
-    return { pets };
-  }
-
-  async sync(): Promise<CatalogSyncResult> {
-    // Client-only: "sync" just refreshes the list (no server-side download)
-    try {
-      const { pets } = await this.fetchList();
-      return { wrote: 0, total: pets.length };
-    } catch (err) {
-      return { wrote: 0, total: 0, error: err instanceof Error ? err.message : 'Sync failed' };
-    }
-  }
-
-  private async fetchPetshare(): Promise<CatalogPet[]> {
-    const resp = await fetch(`${PETSHARE_API}?count=50`);
-    if (!resp.ok) return [];
-    const data = await resp.json() as { pets?: Array<{ id?: string; displayName?: string; description?: string; spritesheetPath?: string; spritesheetUrl?: string }> };
-    return (data.pets ?? []).map((p) => ({
-      id: String(p.id ?? ''),
-      displayName: String(p.displayName ?? p.id ?? ''),
-      description: p.description,
-      spritesheetUrl: p.spritesheetUrl ?? `${PETSHARE_ASSETS}/${p.id}/spritesheet.webp`,
-      bundled: false,
-    })).filter((p) => p.id && p.spritesheetUrl);
-  }
-
-  private async fetchHatchery(): Promise<CatalogPet[]> {
-    const resp = await fetch(HATCHERY_LIST);
-    if (!resp.ok) return [];
-    const data = await resp.json() as { pets?: Array<{ id?: string; petManifestId?: string; displayName?: string; description?: string; spritesheetUrl?: string }> };
-    return (data.pets ?? []).map((p) => ({
-      id: String(p.petManifestId ?? p.id ?? ''),
-      displayName: String(p.displayName ?? p.id ?? ''),
-      description: p.description,
-      spritesheetUrl: String(p.spritesheetUrl ?? ''),
-      bundled: false,
-    })).filter((p) => p.id && p.spritesheetUrl);
-  }
+  private inner = providerCatalogClient(defaultProviderRegistry);
+  async fetchList() { return this.inner.fetchList(); }
+  async sync(source?: 'petshare' | 'hatchery' | 'all') { return this.inner.sync(source); }
 }

@@ -4,6 +4,7 @@
 // managing multiple named pets on one page.
 
 import { createAgentPetAPI } from './mount';
+import { defaultProviderRegistry } from '../core/providers/registry';
 import type {
   AgentPetAPI,
   AgentPetRegistry,
@@ -82,6 +83,8 @@ export function createRegistry(): AgentPetRegistry {
         pets.delete(id);
       }
     },
+    // Pet source providers (codex-pets.net, j20 hatchery, custom).
+    providers: defaultProviderRegistry,
   };
 
   return registry;

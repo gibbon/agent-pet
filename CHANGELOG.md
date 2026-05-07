@@ -1,5 +1,49 @@
 # Changelog
 
+## v0.7.0 — Pluggable pet source providers
+
+codex-pets.net is no longer hardcoded. Pet sources are now registered providers, so the next time codex-pets.net rolls their URL pattern (or any other catalog moves), the fix is configuration, not a release.
+
+**New `PetProvider` interface:**
+
+```ts
+interface PetProvider {
+  id: string;                                              // 'codex', 'hatchery', 'mycorp', ...
+  label?: string;                                          // shown in PetSettings
+  resolveSpritesheet?(petId: string): string;              // sync URL — enables data-<id>-pet="..."
+  fetchPets?(opts?: { count?: number }): Promise<CatalogPet[]>; // async catalog browsing
+  useCodexAtlas?: boolean;
+}
+```
+
+**Built-in providers (auto-registered):**
+- `codexProvider` — codex-pets.net (sync URL + catalog API)
+- `hatcheryProvider` — j20.nz/hatchery (catalog API only — j20 URLs aren't predictable from id)
+
+**Custom providers:**
+
+```js
+AgentPet.providers.register({
+  id: 'mycorp',
+  label: 'Internal Pets',
+  resolveSpritesheet: (id) => `https://my-cdn.example/pets/${id}.webp`,
+  useCodexAtlas: true,
+  async fetchPets() { /* return CatalogPet[] */ },
+});
+```
+
+Once registered, `<script src="..." data-mycorp-pet="dragon">` works. The community tab in PetSettings auto-merges pets from every provider with `fetchPets()`.
+
+**Migration off the hardcoded URL** that previously sat at three sites in the codebase. Now any provider URL change is a one-line update inside `src/core/providers/<id>.ts`, not a frantic search-and-replace across `src/widget/index.ts`, `src/core/types.ts`, and demo HTML.
+
+**Public API additions** (npm consumers):
+- `agent-pet/widget` exports `codexProvider`, `hatcheryProvider`, `defaultProviderRegistry`
+- `agent-pet` (React subpath) re-exports the same plus `DefaultProviderRegistry`, `providerCatalogClient`, `PetProvider`, `PetProviderRegistry`
+
+`DefaultCatalogClient` still exists as a thin alias over the registry — back-compat for v0.6 consumers, no behaviour change.
+
+CDN: `/v0.7/agent-pet-widget.iife.js`. Older paths immutable.
+
 ## v0.6.1 — Fix: codex-pets.net storage migration
 
 codex-pets.net moved their spritesheet storage and API away from Supabase to their own domain on 2026-05-08. The old supabase host stopped resolving, breaking `data-codex-pet="<id>"` and the petshare catalog fetch in every previously-shipped version of agent-pet.
