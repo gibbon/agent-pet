@@ -11,7 +11,7 @@ import { CODEX_ATLAS_COLS, CODEX_ATLAS_ROWS, CODEX_ATLAS_ROWS_DEF, cropAtlasRow,
 import { loadPetImageFromFile } from '../core/image';
 import { PetSpriteFace } from './PetSpriteFace';
 import { usePetContext } from './context';
-import { IconCheck, IconClose, IconCopy, IconDownload, IconEye, IconRefresh, IconSparkles, IconSpinner, IconUpload } from './icons';
+import { mergeIcons, type PetIcons } from './icon-set';
 import { mergeMessages } from './messages';
 
 const ACCENT_SWATCHES = ['#c96442', '#2348b8', '#1f7a3a', '#6c3aa6', '#d97a26', '#9c2a25', '#74716b', '#0d0c0a'];
@@ -26,11 +26,15 @@ interface PetSettingsProps {
   /** Override user-facing strings for i18n. Any omitted key falls back to
    *  the English default exported as DEFAULT_PET_MESSAGES. */
   messages?: Partial<import('./messages').PetMessages>;
+  /** Override the bundled SVG icons with your own design-system icons.
+   *  Any omitted slot falls back to the bundled defaults. */
+  icons?: Partial<PetIcons>;
 }
 
-export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {}) {
+export function PetSettings({ messages: messageOverrides, icons: iconOverrides }: PetSettingsProps = {}) {
   const { pet, setPet, catalog } = usePetContext();
   const m = mergeMessages(messageOverrides);
+  const I = mergeIcons(iconOverrides);
   const glyphId = useId();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const atlasInputRef = useRef<HTMLInputElement | null>(null);
@@ -235,15 +239,15 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
         </div>
         {isActive ? (
           <button type="button" style={{ ...s.btn, ...s.btnActive }} disabled aria-pressed>
-            <IconCheck size={11} /><span>{m.active}</span>
+            <I.Check size={11} /><span>{m.active}</span>
           </button>
         ) : inLibrary ? (
           <button type="button" style={s.btn} onClick={() => switchToLibraryPet(libraryEntry!)} disabled={catalogAdopting !== null}>
-            <IconSparkles size={11} /><span>{m.switch}</span>
+            <I.Sparkles size={11} /><span>{m.switch}</span>
           </button>
         ) : (
           <button type="button" style={s.btn} onClick={() => void adoptCatalogPet(p)} disabled={adopting || catalogAdopting !== null}>
-            {adopting ? <IconSpinner size={11} /> : <IconDownload size={11} />}
+            {adopting ? <I.Spinner size={11} /> : <I.Download size={11} />}
             <span>{adopting ? 'Downloading…' : 'Adopt'}</span>
           </button>
         )}
@@ -265,15 +269,15 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
         <div style={{ display: 'flex', gap: 4 }}>
           {isActive ? (
             <button type="button" style={{ ...s.btn, ...s.btnActive, flex: 1 }} disabled>
-              <IconCheck size={11} /><span>{m.active}</span>
+              <I.Check size={11} /><span>{m.active}</span>
             </button>
           ) : (
             <button type="button" style={{ ...s.btn, flex: 1 }} onClick={() => switchToLibraryPet(entry)}>
-              <IconSparkles size={11} /><span>{m.switch}</span>
+              <I.Sparkles size={11} /><span>{m.switch}</span>
             </button>
           )}
-          <button type="button" style={{ ...s.btn, ...s.btnGhost, padding: '4px 7px' }} onClick={() => removeFromLibrary(entry.id)} title="Remove from collection">
-            <IconClose size={11} />
+          <button type="button" style={{ ...s.btn, ...s.btnGhost, padding: '4px 7px' }} onClick={() => removeFromLibrary(entry.id)} title={m.removeFromCollection}>
+            <I.Close size={11} />
           </button>
         </div>
       </div>
@@ -286,20 +290,20 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
       <div style={s.sectionHead}>
         <div>
           <h3 style={s.h3}>{m.companionPet}</h3>
-          <p style={s.hint}>An animated companion that reacts to your agent's state.</p>
+          <p style={s.hint}>{m.companionTagline}</p>
         </div>
-        <button type="button" style={{ ...s.btn, ...(pet.enabled ? s.btnActive : {}) }} onClick={() => update({ enabled: !pet.enabled, adopted: pet.adopted || pet.petId !== '' })} disabled={!pet.adopted} title={pet.enabled ? 'Dismiss pet' : 'Wake pet'}>
-          {pet.enabled ? <IconEye size={13} /> : <IconSparkles size={13} />}
+        <button type="button" style={{ ...s.btn, ...(pet.enabled ? s.btnActive : {}) }} onClick={() => update({ enabled: !pet.enabled, adopted: pet.adopted || pet.petId !== '' })} disabled={!pet.adopted} title={pet.enabled ? m.dismissPet : m.wakePet}>
+          {pet.enabled ? <I.Eye size={13} /> : <I.Sparkles size={13} />}
           <span>{pet.enabled ? 'Dismiss' : 'Wake'}</span>
         </button>
       </div>
 
       {/* Tab bar */}
       <div style={{ marginBottom: 12 }}>
-        <div style={s.tabList} role="tablist" aria-label="Pet source">
+        <div style={s.tabList} role="tablist" aria-label={m.petSourceLabel}>
           {(['builtIn', 'custom', 'community'] as PetSourceTab[]).map((tab) => (
             <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} style={{ ...s.tab, ...(activeTab === tab ? s.tabActive : {}) }} onClick={() => setActiveTab(tab)}>
-              {tab === 'builtIn' ? 'Built-in' : tab === 'custom' ? 'Custom' : 'Community'}
+              {tab === 'builtIn' ? m.builtInTab : tab === 'custom' ? m.customTab : m.communityTab}
             </button>
           ))}
         </div>
@@ -325,10 +329,10 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <div>
               <strong style={{ fontSize: 13 }}>{m.yourPet}</strong>
-              <p style={s.hint}>Upload a sprite, set the name and accent colour.</p>
+              <p style={s.hint}>{m.customizeTagline}</p>
             </div>
             <button type="button" style={{ ...s.btn, ...(pet.adopted && pet.petId === CUSTOM_PET_ID ? s.btnActive : {}) }} onClick={() => adopt(CUSTOM_PET_ID)}>
-              {pet.adopted && pet.petId === CUSTOM_PET_ID ? <IconCheck size={11} /> : <IconSparkles size={11} />}
+              {pet.adopted && pet.petId === CUSTOM_PET_ID ? <I.Check size={11} /> : <I.Sparkles size={11} />}
               <span>{pet.adopted && pet.petId === CUSTOM_PET_ID ? 'Active' : 'Use this pet'}</span>
             </button>
           </div>
@@ -349,31 +353,31 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
           <input ref={atlasInputRef} type="file" accept="image/png,image/webp,image/jpeg,image/gif" style={{ display: 'none' }} onChange={(e) => { void handleAtlasFile(e.target.files?.[0]); e.target.value = ''; }} />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
             <button type="button" style={s.btn} onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-              {uploading ? <IconSpinner size={11} /> : <IconUpload size={11} />}
-              <span>{pet.custom.imageUrl ? 'Replace sprite' : 'Upload sprite'}</span>
+              {uploading ? <I.Spinner size={11} /> : <I.Upload size={11} />}
+              <span>{pet.custom.imageUrl ? m.upload + ' (replace)' : m.upload}</span>
             </button>
-            <button type="button" style={{ ...s.btn, ...s.btnGhost }} onClick={() => atlasInputRef.current?.click()} disabled={atlasBusy} title="Import a Codex 8×9 sprite atlas">
-              {atlasBusy ? <IconSpinner size={11} /> : <IconSparkles size={11} />}
-              <span>Import Codex atlas</span>
+            <button type="button" style={{ ...s.btn, ...s.btnGhost }} onClick={() => atlasInputRef.current?.click()} disabled={atlasBusy} title={m.importAtlasTitle}>
+              {atlasBusy ? <I.Spinner size={11} /> : <I.Sparkles size={11} />}
+              <span>{m.importCodexAtlas}</span>
             </button>
             {pet.custom.imageUrl && (
               <button type="button" style={{ ...s.btn, ...s.btnGhost }} onClick={() => patchCustom({ imageUrl: undefined, frames: 1, atlas: undefined })}>
-                <IconClose size={11} /><span>Remove</span>
+                <I.Close size={11} /><span>{m.remove}</span>
               </button>
             )}
           </div>
-          {pet.custom.imageUrl && pet.custom.atlas && <p style={{ ...s.hint, color: '#4ec9e0' }}>Full atlas active — 9 animation rows.</p>}
+          {pet.custom.imageUrl && pet.custom.atlas && <p style={{ ...s.hint, color: '#4ec9e0' }}>{m.atlasActiveNote}</p>}
           {pet.custom.imageUrl && !pet.custom.atlas && (
             <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
               <label style={s.field}>
-                <span style={s.fieldLabel}>Frames</span>
+                <span style={s.fieldLabel}>{m.frames}</span>
                 <input type="number" min={FRAMES_MIN} max={FRAMES_MAX} step={1} value={pet.custom.frames ?? 1} onChange={(e) => { const n = parseInt(e.target.value, 10); if (Number.isFinite(n)) patchCustom({ frames: n }); }} style={s.input} />
-                <p style={s.hint}>Horizontal cells in the sprite strip</p>
+                <p style={s.hint}>{m.framesHint}</p>
               </label>
               <label style={s.field}>
-                <span style={s.fieldLabel}>FPS</span>
+                <span style={s.fieldLabel}>{m.fps}</span>
                 <input type="number" min={FPS_MIN} max={FPS_MAX} step={1} value={pet.custom.fps ?? 6} onChange={(e) => { const n = parseInt(e.target.value, 10); if (Number.isFinite(n)) patchCustom({ fps: n }); }} style={s.input} />
-                <p style={s.hint}>Playback speed</p>
+                <p style={s.hint}>{m.fpsHint}</p>
               </label>
             </div>
           )}
@@ -384,15 +388,15 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
             <div style={s.atlasPicker}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <div>
-                  <strong style={{ fontSize: 13 }}>Atlas row picker</strong>
-                  <p style={s.hint}>Choose one row or adopt the full atlas for interactive animations.</p>
+                  <strong style={{ fontSize: 13 }}>{m.atlasRowPicker}</strong>
+                  <p style={s.hint}>{m.atlasPickerHint}</p>
                 </div>
                 <button type="button" style={{ ...s.btn, ...s.btnGhost }} onClick={() => setAtlasPreview(null)} disabled={atlasBusy}>
-                  <IconClose size={11} /><span>{m.cancel}</span>
+                  <I.Close size={11} /><span>{m.cancel}</span>
                 </button>
               </div>
               <div style={{ width: '100%', height: 80, backgroundImage: `url(${atlasPreview.dataUrl})`, backgroundSize: '100% auto', backgroundRepeat: 'no-repeat', borderRadius: 6, marginBottom: 8 }} aria-hidden />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} role="radiogroup" aria-label="Animation rows">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} role="radiogroup" aria-label={m.animationRowsLabel}>
                 {CODEX_ATLAS_ROWS_DEF.map((row) => {
                   const isActive = row.index === atlasRowIndex;
                   return (
@@ -404,13 +408,13 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
                 })}
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <button type="button" style={s.btn} onClick={() => void commitFullAtlas()} disabled={atlasBusy} title="Keep all 9 rows for interactive animations">
-                  {atlasBusy ? <IconSpinner size={11} /> : <IconSparkles size={11} />}
-                  <span>Use full atlas</span>
+                <button type="button" style={s.btn} onClick={() => void commitFullAtlas()} disabled={atlasBusy} title={m.useAllRowsTitle}>
+                  {atlasBusy ? <I.Spinner size={11} /> : <I.Sparkles size={11} />}
+                  <span>{m.useFullAtlas}</span>
                 </button>
-                <button type="button" style={{ ...s.btn, ...s.btnGhost }} onClick={() => void commitAtlasRow()} disabled={atlasBusy} title="Crop and use just this row">
-                  {atlasBusy ? <IconSpinner size={11} /> : <IconCheck size={11} />}
-                  <span>Use this row</span>
+                <button type="button" style={{ ...s.btn, ...s.btnGhost }} onClick={() => void commitAtlasRow()} disabled={atlasBusy} title={m.cropRowTitle}>
+                  {atlasBusy ? <I.Spinner size={11} /> : <I.Check size={11} />}
+                  <span>{m.useThisRow}</span>
                 </button>
               </div>
             </div>
@@ -419,28 +423,28 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
           {/* Text fields */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
             <label style={s.field}>
-              <span style={s.fieldLabel}>Name</span>
-              <input type="text" maxLength={32} value={pet.custom.name} placeholder="Buddy" onChange={(e) => update({ custom: { ...pet.custom, name: e.target.value } })} style={s.input} />
+              <span style={s.fieldLabel}>{m.name}</span>
+              <input type="text" maxLength={32} value={pet.custom.name} placeholder={m.placeholderName} onChange={(e) => update({ custom: { ...pet.custom, name: e.target.value } })} style={s.input} />
             </label>
             <label style={s.field} htmlFor={glyphId}>
-              <span style={s.fieldLabel}>Glyph</span>
-              <input id={glyphId} type="text" maxLength={4} value={pet.custom.glyph} placeholder="🦄" onChange={(e) => update({ custom: { ...pet.custom, glyph: e.target.value } })} style={{ ...s.input, width: 60 }} />
-              <p style={s.hint}>Emoji or short text shown when no sprite is uploaded</p>
+              <span style={s.fieldLabel}>{m.glyph}</span>
+              <input id={glyphId} type="text" maxLength={4} value={pet.custom.glyph} placeholder={m.placeholderGlyph} onChange={(e) => update({ custom: { ...pet.custom, glyph: e.target.value } })} style={{ ...s.input, width: 60 }} />
+              <p style={s.hint}>{m.glyphHint}</p>
             </label>
             <label style={s.field}>
-              <span style={s.fieldLabel}>Greeting</span>
-              <input type="text" maxLength={120} value={pet.custom.greeting} placeholder="Hi! I am here whenever you need me." onChange={(e) => update({ custom: { ...pet.custom, greeting: e.target.value } })} style={s.input} />
+              <span style={s.fieldLabel}>{m.greeting}</span>
+              <input type="text" maxLength={120} value={pet.custom.greeting} placeholder={m.placeholderGreeting} onChange={(e) => update({ custom: { ...pet.custom, greeting: e.target.value } })} style={s.input} />
             </label>
             <div style={s.field}>
-              <span style={s.fieldLabel}>Accent colour</span>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }} role="radiogroup" aria-label="Accent colour">
+              <span style={s.fieldLabel}>{m.accentColour}</span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }} role="radiogroup" aria-label={m.accentColour}>
                 {ACCENT_SWATCHES.map((color) => {
                   const isActive = pet.custom.accent.toLowerCase() === color.toLowerCase();
                   return (
                     <button key={color} type="button" role="radio" aria-checked={isActive} style={{ width: 22, height: 22, borderRadius: '50%', background: color, border: isActive ? `2px solid white` : '2px solid transparent', cursor: 'pointer', outline: isActive ? `2px solid ${color}` : 'none', outlineOffset: 1 }} onClick={() => update({ custom: { ...pet.custom, accent: color } })} title={color} />
                   );
                 })}
-                <input type="color" aria-label="Custom colour" value={pet.custom.accent} onChange={(e) => update({ custom: { ...pet.custom, accent: e.target.value } })} style={{ width: 28, height: 22, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
+                <input type="color" aria-label={m.customColourLabel} value={pet.custom.accent} onChange={(e) => update({ custom: { ...pet.custom, accent: e.target.value } })} style={{ width: 28, height: 22, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
               </div>
             </div>
           </div>
@@ -454,7 +458,7 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
           {library.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <strong style={{ fontSize: 13 }}>{m.myPets}</strong>
-              <p style={{ ...s.hint, marginBottom: 8 }}>Your downloaded collection — click Switch to activate.</p>
+              <p style={{ ...s.hint, marginBottom: 8 }}>{m.myPetsHint}</p>
               <div style={s.grid}>{library.map(renderLibraryCard)}</div>
             </div>
           )}
@@ -464,15 +468,15 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
               <div>
                 <strong style={{ fontSize: 13 }}>{m.communityCatalog}</strong>
-                <p style={s.hint}>Pets from Codex Pet Share and j20 Hatchery.</p>
+                <p style={s.hint}>{m.communityHint}</p>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" style={s.btn} onClick={() => void handleSync()} disabled={syncing} title="Download latest pets from the community catalogs">
-                  {syncing ? <IconSpinner size={11} /> : <IconDownload size={11} />}
+                <button type="button" style={s.btn} onClick={() => void handleSync()} disabled={syncing} title={m.syncTitle}>
+                  {syncing ? <I.Spinner size={11} /> : <I.Download size={11} />}
                   <span>{syncing ? 'Syncing…' : 'Sync catalog'}</span>
                 </button>
                 <button type="button" style={{ ...s.btn, ...s.btnGhost }} onClick={() => void refreshCatalog()} disabled={catalogLoading}>
-                  {catalogLoading ? <IconSpinner size={11} /> : <IconRefresh size={11} />}
+                  {catalogLoading ? <I.Spinner size={11} /> : <I.Refresh size={11} />}
                   <span>{m.refresh}</span>
                 </button>
               </div>
@@ -491,16 +495,16 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
 
           {/* Hatch with AI */}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14 }}>
-            <strong style={{ fontSize: 13 }}>Hatch with AI</strong>
-            <p style={s.hint}>Describe a pet concept and paste the generated prompt into your AI chat.</p>
+            <strong style={{ fontSize: 13 }}>{m.hatchWithAI}</strong>
+            <p style={s.hint}>{m.hatchHint}</p>
             <label style={{ ...s.field, marginTop: 8 }}>
-              <span style={s.fieldLabel}>Concept</span>
-              <input type="text" maxLength={140} value={hatchConcept} placeholder="a sleepy capybara in a top hat" onChange={(e) => setHatchConcept(e.target.value)} style={s.input} />
+              <span style={s.fieldLabel}>{m.concept}</span>
+              <input type="text" maxLength={140} value={hatchConcept} placeholder={m.placeholderConcept} onChange={(e) => setHatchConcept(e.target.value)} style={s.input} />
             </label>
             <pre style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 6, padding: '10px 12px', fontSize: 11, lineHeight: 1.5, overflowX: 'auto', marginTop: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} aria-live="polite">{hatchPrompt}</pre>
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
               <button type="button" style={s.btn} onClick={() => void copyHatchPrompt()}>
-                {hatchCopied ? <IconCheck size={11} /> : <IconCopy size={11} />}
+                {hatchCopied ? <I.Check size={11} /> : <I.Copy size={11} />}
                 <span>{hatchCopied ? 'Copied!' : 'Copy prompt'}</span>
               </button>
             </div>
@@ -512,30 +516,42 @@ export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {
 }
 
 // ── Inline styles ──────────────────────────────────────────────────────
+//
+// Theming contract — all surface colors flow through CSS custom properties
+// with sensible dark-theme defaults. Override via your own stylesheet to
+// match your design system:
+//
+//   :root, .my-app {
+//     --ap-bg-soft:   rgba(0,0,0,0.04);
+//     --ap-bg-medium: rgba(0,0,0,0.08);
+//     --ap-bg-strong: rgba(0,0,0,0.18);
+//     --ap-border:    rgba(0,0,0,0.15);
+//     --ap-border-strong: rgba(0,0,0,0.3);
+//   }
 
 const styles = {
   section: { display: 'flex', flexDirection: 'column', gap: 12 } as React.CSSProperties,
   sectionHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } as React.CSSProperties,
   h3: { margin: 0, fontSize: 14, fontWeight: 600 } as React.CSSProperties,
   hint: { margin: 0, fontSize: 11, opacity: 0.6, lineHeight: 1.4 } as React.CSSProperties,
-  tabList: { display: 'flex', gap: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: 2, marginBottom: 6, width: 'fit-content' } as React.CSSProperties,
+  tabList: { display: 'flex', gap: 2, background: 'var(--ap-bg-soft, rgba(255,255,255,0.06))', borderRadius: 8, padding: 2, marginBottom: 6, width: 'fit-content' } as React.CSSProperties,
   tab: { padding: '4px 12px', borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'inherit', opacity: 0.7 } as React.CSSProperties,
-  tabActive: { background: 'rgba(255,255,255,0.12)', opacity: 1 } as React.CSSProperties,
-  btn: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.08)', cursor: 'pointer', fontSize: 12, color: 'inherit', whiteSpace: 'nowrap' as const } as React.CSSProperties,
-  btnActive: { background: 'rgba(255,255,255,0.18)', borderColor: 'rgba(255,255,255,0.3)' } as React.CSSProperties,
-  btnGhost: { background: 'transparent', borderColor: 'rgba(255,255,255,0.1)' } as React.CSSProperties,
+  tabActive: { background: 'var(--ap-bg-medium, rgba(255,255,255,0.12))', opacity: 1 } as React.CSSProperties,
+  btn: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--ap-border, rgba(255,255,255,0.15))', background: 'var(--ap-bg-medium, rgba(255,255,255,0.08))', cursor: 'pointer', fontSize: 12, color: 'inherit', whiteSpace: 'nowrap' as const } as React.CSSProperties,
+  btnActive: { background: 'var(--ap-bg-strong, rgba(255,255,255,0.18))', borderColor: 'var(--ap-border-strong, rgba(255,255,255,0.3))' } as React.CSSProperties,
+  btnGhost: { background: 'transparent', borderColor: 'var(--ap-border-soft, rgba(255,255,255,0.1))' } as React.CSSProperties,
   field: { display: 'flex', flexDirection: 'column', gap: 4 } as React.CSSProperties,
   fieldLabel: { fontSize: 11, opacity: 0.7, fontWeight: 500 } as React.CSSProperties,
-  input: { padding: '5px 8px', borderRadius: 5, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'inherit', fontSize: 12, width: '100%', boxSizing: 'border-box' as const } as React.CSSProperties,
-  preview: { display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 8, border: '1.5px solid', background: 'rgba(255,255,255,0.04)', marginBottom: 12 } as React.CSSProperties,
+  input: { padding: '5px 8px', borderRadius: 5, border: '1px solid var(--ap-border, rgba(255,255,255,0.15))', background: 'var(--ap-bg-soft, rgba(255,255,255,0.06))', color: 'inherit', fontSize: 12, width: '100%', boxSizing: 'border-box' as const } as React.CSSProperties,
+  preview: { display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 8, border: '1.5px solid', background: 'var(--ap-bg-soft, rgba(255,255,255,0.04))', marginBottom: 12 } as React.CSSProperties,
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 } as React.CSSProperties,
-  card: { display: 'flex', flexDirection: 'column', gap: 6, padding: 10, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', cursor: 'default' } as React.CSSProperties,
-  cardActive: { borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.08)' } as React.CSSProperties,
+  card: { display: 'flex', flexDirection: 'column', gap: 6, padding: 10, borderRadius: 8, border: '1px solid var(--ap-border-soft, rgba(255,255,255,0.1))', background: 'var(--ap-bg-soft, rgba(255,255,255,0.04))', cursor: 'default' } as React.CSSProperties,
+  cardActive: { borderColor: 'var(--ap-border-strong, rgba(255,255,255,0.3))', background: 'var(--ap-bg-medium, rgba(255,255,255,0.08))' } as React.CSSProperties,
   cardThumb: { width: '100%', aspectRatio: '1', borderRadius: 6, backgroundRepeat: 'no-repeat' } as React.CSSProperties,
   cardMeta: { display: 'flex', flexDirection: 'column', gap: 2 } as React.CSSProperties,
-  atlasPicker: { background: 'rgba(255,255,255,0.04)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', padding: 12, marginTop: 10 } as React.CSSProperties,
-  atlasRow: { display: 'flex', alignItems: 'center', padding: '5px 8px', borderRadius: 5, border: '1px solid rgba(255,255,255,0.08)', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'inherit', gap: 8 } as React.CSSProperties,
-  atlasRowActive: { background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)' } as React.CSSProperties,
+  atlasPicker: { background: 'var(--ap-bg-soft, rgba(255,255,255,0.04))', borderRadius: 8, border: '1px solid var(--ap-border-soft, rgba(255,255,255,0.1))', padding: 12, marginTop: 10 } as React.CSSProperties,
+  atlasRow: { display: 'flex', alignItems: 'center', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--ap-border-soft, rgba(255,255,255,0.08))', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'inherit', gap: 8 } as React.CSSProperties,
+  atlasRowActive: { background: 'var(--ap-bg-medium, rgba(255,255,255,0.12))', borderColor: 'var(--ap-border, rgba(255,255,255,0.25))' } as React.CSSProperties,
 };
 
 function blobToDataUrl(blob: Blob): Promise<string> {

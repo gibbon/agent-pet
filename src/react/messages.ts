@@ -3,36 +3,47 @@
 // site that ships in multiple languages) override individual keys via the
 // `messages` prop on PetSettings / PetRail.
 //
-// Keys mirror the JSX label they appear next to so they're easy to map:
-//   <button>{m.adopt}</button>           // 'Adopt'
-//   <h3>{m.companionPet}</h3>            // 'Companion Pet'
-//
-// Defaults are in English. To translate, pass a partial overrides object —
-// any key omitted falls back to the English default.
+// Keys mirror the JSX label they appear next to so they're easy to map.
+// Defaults are in English. Missing keys fall back to the English default —
+// translate one string at a time, no need to ship the full set.
 
 export interface PetMessages {
-  // Tabs
+  // ── Tabs ───────────────────────────────────────────────────────
   builtInTab: string;
   customTab: string;
   communityTab: string;
-  // Sections
+  petSourceLabel: string;          // ARIA on the tablist
+
+  // ── Section headers ────────────────────────────────────────────
   companionPet: string;
+  companionTagline: string;        // "An animated companion that reacts to your agent's state."
   myPets: string;
+  myPetsHint: string;              // "Your downloaded collection — click Switch to activate."
   yourPet: string;
-  customizePet: string;
+  customizeTagline: string;        // "Upload a sprite, set the name and accent colour."
   hatchWithAI: string;
+  hatchHint: string;               // "Describe a pet concept and paste the generated prompt into your AI chat."
   importCodexAtlas: string;
   communityCatalog: string;
-  // Form labels
+  communityHint: string;           // "Pets from Codex Pet Share and j20 Hatchery."
+  customizePet: string;
+  atlasRowPicker: string;
+  atlasPickerHint: string;         // "Choose one row or adopt the full atlas for interactive animations."
+
+  // ── Form labels & hints ───────────────────────────────────────
   name: string;
   glyph: string;
+  glyphHint: string;               // "Emoji or short text shown when no sprite is uploaded"
   greeting: string;
   accentColour: string;
+  customColourLabel: string;       // ARIA for the <input type="color">
   frames: string;
+  framesHint: string;              // "Horizontal cells in the sprite strip"
   fps: string;
-  playbackSpeed: string;
+  fpsHint: string;                 // "Playback speed"
   concept: string;
-  // Buttons / actions
+
+  // ── Buttons / actions ─────────────────────────────────────────
   adopt: string;
   active: string;
   switch: string;
@@ -46,41 +57,61 @@ export interface PetMessages {
   copy: string;
   copied: string;
   preview: string;
-  // Hints / placeholders
-  defaultName: string;          // placeholder "Buddy"
-  defaultGlyph: string;         // placeholder "🦄"
-  defaultGreeting: string;      // placeholder "Hi! I am here whenever you need me."
-  emptyCatalogHint: string;
-  // ARIA / titles
-  petSourceLabel: string;
-  animationRowsLabel: string;
-  removeFromCollection: string;
+  atlasActiveNote: string;         // "Full atlas active — 9 animation rows."
+
+  // ── Toggle / wake / dismiss ───────────────────────────────────
+  wakePet: string;                 // toggle title when off
+  dismissPet: string;              // toggle title when on
+
+  // ── Placeholders ──────────────────────────────────────────────
+  placeholderName: string;         // "Buddy"
+  placeholderGlyph: string;        // "🦄"
+  placeholderGreeting: string;     // "Hi! I am here whenever you need me."
+  placeholderConcept: string;      // "a sleepy capybara in a top hat"
+
+  // ── ARIA / titles ─────────────────────────────────────────────
+  animationRowsLabel: string;      // ARIA on the row radiogroup
+  removeFromCollection: string;    // hover title
   importAtlasTitle: string;
   useAllRowsTitle: string;
   cropRowTitle: string;
-  atlasRowPicker: string;
-  horizontalCellsHint: string;
+  syncTitle: string;               // "Download latest pets from the community catalogs"
+  emptyCatalogHint: string;
 }
 
 export const DEFAULT_PET_MESSAGES: PetMessages = {
   builtInTab: 'Built-in',
   customTab: 'Custom',
   communityTab: 'Community',
+  petSourceLabel: 'Pet source',
+
   companionPet: 'Companion Pet',
+  companionTagline: "An animated companion that reacts to your agent's state.",
   myPets: 'My pets',
+  myPetsHint: 'Your downloaded collection — click Switch to activate.',
   yourPet: 'Your pet',
-  customizePet: 'Customize pet',
+  customizeTagline: 'Upload a sprite, set the name and accent colour.',
   hatchWithAI: 'Hatch with AI',
+  hatchHint: 'Describe a pet concept and paste the generated prompt into your AI chat.',
   importCodexAtlas: 'Import Codex atlas',
   communityCatalog: 'Community catalog',
+  communityHint: 'Pets from Codex Pet Share and j20 Hatchery.',
+  customizePet: 'Customize pet',
+  atlasRowPicker: 'Atlas row picker',
+  atlasPickerHint: 'Choose one row or adopt the full atlas for interactive animations.',
+
   name: 'Name',
   glyph: 'Glyph',
+  glyphHint: 'Emoji or short text shown when no sprite is uploaded',
   greeting: 'Greeting',
   accentColour: 'Accent colour',
+  customColourLabel: 'Custom colour',
   frames: 'Frames',
+  framesHint: 'Horizontal cells in the sprite strip',
   fps: 'FPS',
-  playbackSpeed: 'Playback speed',
+  fpsHint: 'Playback speed',
   concept: 'Concept',
+
   adopt: 'Adopt',
   active: 'Active',
   switch: 'Switch',
@@ -94,18 +125,23 @@ export const DEFAULT_PET_MESSAGES: PetMessages = {
   copy: 'Copy',
   copied: 'Copied!',
   preview: 'Preview',
-  defaultName: 'Buddy',
-  defaultGlyph: '🦄',
-  defaultGreeting: 'Hi! I am here whenever you need me.',
-  emptyCatalogHint: 'No pets yet — adopt one to start.',
-  petSourceLabel: 'Pet source',
+  atlasActiveNote: 'Full atlas active — 9 animation rows.',
+
+  wakePet: 'Wake pet',
+  dismissPet: 'Dismiss pet',
+
+  placeholderName: 'Buddy',
+  placeholderGlyph: '🦄',
+  placeholderGreeting: 'Hi! I am here whenever you need me.',
+  placeholderConcept: 'a sleepy capybara in a top hat',
+
   animationRowsLabel: 'Animation rows',
   removeFromCollection: 'Remove from collection',
   importAtlasTitle: 'Import a Codex 8×9 sprite atlas',
   useAllRowsTitle: 'Keep all 9 rows for interactive animations',
   cropRowTitle: 'Crop and use just this row',
-  atlasRowPicker: 'Atlas row picker',
-  horizontalCellsHint: 'Horizontal cells in the sprite strip',
+  syncTitle: 'Download latest pets from the community catalogs',
+  emptyCatalogHint: 'No pets yet — adopt one to start.',
 };
 
 /** Merge a partial override into the default messages. Any missing key

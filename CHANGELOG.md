@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.6.0 — Complete pluggability (full i18n + icons + CSS variables)
+
+Closes the v0.5 plug-in story so deeply-integrated apps (open-design, FroeMic, future forks) can adopt agent-pet's PetSettings as their settings UI without forking.
+
+**Complete `messages` coverage:**
+
+Every user-facing string in `PetSettings` and `PetRail` now flows through the `PetMessages` contract — placeholders, tooltips, ARIA labels, hints, the lot. ~45 keys total. Missing keys still fall back to English defaults so consumers can translate at their own pace.
+
+**`icons` prop override:**
+
+```tsx
+import { PetSettings, type PetIcons } from 'agent-pet';
+import { Check, X, Download, Upload, Sparkle } from '@your-design/icons';
+
+<PetSettings icons={{
+  Check, Close: X, Download, Upload, Sparkles: Sparkle,
+}} />
+```
+
+`PetIcons` covers all 12 icon slots used by PetSettings + PetRail. Drop in your own React components matching `(props: { size?: number, style?: CSSProperties }) => JSX`. Defaults exported as `DEFAULT_PET_ICONS`.
+
+**CSS custom properties for theming:**
+
+PetSettings inline styles now flow through CSS variables with sensible dark-theme defaults. Override in your stylesheet:
+
+```css
+:root {
+  --ap-bg-soft:        rgba(0,0,0,0.04);
+  --ap-bg-medium:      rgba(0,0,0,0.08);
+  --ap-bg-strong:      rgba(0,0,0,0.18);
+  --ap-border:         rgba(0,0,0,0.15);
+  --ap-border-soft:    rgba(0,0,0,0.1);
+  --ap-border-strong:  rgba(0,0,0,0.3);
+}
+```
+
+**Outcome:** the open-design migration cost from "agent-pet doesn't fit our app" to "we can drop in `<PetSettings messages={...} icons={...} />` plus a `composeCatalogs` adapter" — ~150 LOC of glue, vs ~1200 LOC of forked PetSettings. Real architectural win, not just a pitch.
+
+CDN: `/v0.6/agent-pet-widget.iife.js`. Older paths immutable.
+
 ## v0.5.0 — Pluggable PetSettings (i18n + catalog compose)
 
 Extension points so app-integrators can replace agent-pet's PetSettings UI surface via configuration rather than copy-pasting the source.

@@ -14,6 +14,8 @@ export { composeCatalogs } from './core/compose-catalogs';
 
 // i18n message contract for PetSettings + PetRail
 export { DEFAULT_PET_MESSAGES, mergeMessages, type PetMessages } from './react/messages';
+// Icon override contract — bring your own design-system icons
+export { DEFAULT_PET_ICONS, mergeIcons, type PetIcons, type IconComponent, type IconProps } from './react/icon-set';
 
 // Widget API types — for non-React frameworks driving window.AgentPet via getAgentPet().
 export type {
