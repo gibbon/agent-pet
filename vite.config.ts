@@ -35,6 +35,8 @@ export default defineConfig(({ mode }) => {
           globals: isWidget
             ? {}
             : { react: 'React', 'react-dom': 'ReactDOM' },
+          // Force the extracted CSS to be `pet.css` rather than entry-named.
+          assetFileNames: (asset) => (asset.name?.endsWith('.css') ? 'pet.css' : 'assets/[name]-[hash][extname]'),
         },
       },
       outDir: 'dist',

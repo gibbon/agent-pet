@@ -9,7 +9,7 @@
       "import": "./dist/agent-pet.js",
       "types": "./dist/index.d.ts"
     },
-    "./css": "./dist/agent-pet.css"
+    "./css": "./dist/pet.css"
   },
   "files": [
     "dist"
