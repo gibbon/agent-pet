@@ -123,9 +123,20 @@ pnpm vendor-pet homelander
 
 Vendor multiple at once: `pnpm vendor-pet homelander guga totoro`.
 
-### 3. npm package (React apps)
+### 3. npm package (offline / SDK use)
 
-> Not yet published to npm. For now, install via tarball: `pnpm pack` in this repo, then `pnpm add /path/to/agent-pet-0.1.0.tgz` in your app.
+Install once from npm — no CDN needed at runtime, works fully offline.
+
+```bash
+pnpm add agent-pet
+```
+
+The package ships **two things in `dist/`**:
+
+- `agent-pet.js` — ES module with React components + types + helpers (for React apps)
+- `agent-pet-widget.iife.js` — the same widget bundle used by the CDN, fully self-contained
+
+**React apps** — import the components directly:
 
 ```tsx
 import { PetProvider, PetOverlay } from 'agent-pet';
@@ -140,7 +151,70 @@ function App({ appState }) {
 }
 ```
 
-The npm package exports the underlying React components plus all core types and atlas helpers. React 18+ is a peer dependency.
+**Other frameworks (Svelte / Vue / Solid / Angular / vanilla)** — vendor the IIFE from `node_modules` to your static assets, then drive it via `getAgentPet()` for full type safety:
+
+```bash
+# Copy the IIFE to your public/static dir at build time. Most frameworks
+# have a copy/symlink convention — examples below.
+cp node_modules/agent-pet/dist/agent-pet-widget.iife.js public/
+```
+
+```html
+<!-- index.html -->
+<script src="/agent-pet-widget.iife.js" data-codex-pet="homelander"></script>
+```
+
+```ts
+// component.ts (any framework)
+import { getAgentPet, type WidgetState } from 'agent-pet';
+
+const pet = getAgentPet();   // typed AgentPetAPI, throws if script tag missing
+pet.setState('thinking');
+pet.play('greeting');
+```
+
+#### Framework-specific snippets
+
+**Svelte 5:**
+```svelte
+<script lang="ts">
+  import { getAgentPet, type WidgetState } from 'agent-pet';
+  let working = $state(false);
+  $effect(() => getAgentPet().setState(working ? 'thinking' : 'idle'));
+</script>
+```
+
+**Vue 3:**
+```ts
+import { ref, watch } from 'vue';
+import { getAgentPet } from 'agent-pet';
+
+const working = ref(false);
+watch(working, v => getAgentPet().setState(v ? 'thinking' : 'idle'), { immediate: true });
+```
+
+**Solid:**
+```tsx
+import { createSignal, createEffect } from 'solid-js';
+import { getAgentPet } from 'agent-pet';
+
+const [working, setWorking] = createSignal(false);
+createEffect(() => getAgentPet().setState(working() ? 'thinking' : 'idle'));
+```
+
+**Angular:**
+```ts
+import { Component, effect, signal } from '@angular/core';
+import { getAgentPet } from 'agent-pet';
+
+@Component({ ... })
+export class App {
+  working = signal(false);
+  constructor() { effect(() => getAgentPet().setState(this.working() ? 'thinking' : 'idle')); }
+}
+```
+
+`getAgentPet()` throws a clear error if the script tag hasn't loaded — use `isAgentPetReady()` for non-throwing checks. React 18+ is a **peer dependency** for the React subset; non-React consumers don't need it (the IIFE bundles its own Preact runtime).
 
 ---
 

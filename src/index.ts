@@ -8,5 +8,17 @@ export { PetSpriteFace } from './react/PetSpriteFace';
 export { PetSettings } from './react/PetSettings';
 export { PetRail } from './react/PetRail';
 
-// Core logic and types — re-exported so consumers don't need a separate import path
+// Core logic and types
 export * from './core/index';
+
+// Widget API types — for non-React frameworks driving window.AgentPet via getAgentPet().
+export type {
+  AgentPetAPI,
+  WidgetState,
+  WidgetEventName,
+  ConfigureOptions,
+  MountOptions,
+  PlayOptions,
+  SayOptions,
+} from './widget/api';
+export { getAgentPet, isAgentPetReady } from './shared/global';
