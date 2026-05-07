@@ -4,9 +4,9 @@ import { createRoot } from 'react-dom/client';
 import { PetProvider } from '../react/context';
 import { PetOverlay } from '../react/PetOverlay';
 import { defaultPetAdapter } from '../core/adapters/default';
-import { DEFAULT_PET_CONFIG, defaultCustomPet } from '../core/pets';
-import { CODEX_ATLAS_LAYOUT } from '../core/atlas';
-import type { WidgetState, AgentPetAPI, ConfigureOptions, SayOptions, MountOptions } from './api';
+import { DEFAULT_PET_CONFIG, defaultCustomPet, preferredRowId } from '../core/pets';
+import { CODEX_ATLAS_LAYOUT, CODEX_ATLAS_ROWS_DEF } from '../core/atlas';
+import type { WidgetState, AgentPetAPI, ConfigureOptions, SayOptions, MountOptions, PlayOptions } from './api';
 import { SpeechQueue } from './queue';
 // @ts-expect-error — Vite resolves ?inline at build time, returns the raw CSS string.
 import petCss from '../react/pet.css?inline';
@@ -67,6 +67,25 @@ export function createAgentPetAPI(): AgentPetAPI {
 
   let host: HTMLElement | null = null;
   let root: Root | null = null;
+  let playRevertTimer: ReturnType<typeof setTimeout> | null = null;
+  // Track the persistent state so play() reverts to it (not to the previous one-shot).
+  let persistentState: WidgetState = 'idle';
+
+  // Estimate one-loop duration for an action by reading the current pet's atlas
+  // row matching the row id; falls back to the standard Codex row defs if no
+  // pet-specific atlas is configured. ~1500 ms when nothing's resolvable.
+  const estimateLoopMs = (action: WidgetState, storageKey?: string): number => {
+    const rowId = preferredRowId(defaultPetAdapter.map(action));
+    try {
+      const raw = localStorage.getItem(storageKey ?? 'agent-pet:config');
+      const cfg: typeof DEFAULT_PET_CONFIG | null = raw ? JSON.parse(raw) : null;
+      const customRow = cfg?.custom?.atlas?.rowsDef.find((r) => r.id === rowId);
+      if (customRow) return Math.round((customRow.frames / customRow.fps) * 1000);
+    } catch { /* localStorage unavailable */ }
+    const codexRow = CODEX_ATLAS_ROWS_DEF.find((r) => r.id === rowId);
+    if (codexRow) return Math.round((codexRow.frames / codexRow.fps) * 1000);
+    return 1500;
+  };
 
   const doMount = (opts: MountOptions) => {
     if (host) doUnmount();
@@ -97,13 +116,33 @@ export function createAgentPetAPI(): AgentPetAPI {
     host = null;
   };
 
+  // Apply a state without recording it as the persistent base. Used by play()
+  // to set a one-shot action and by setState() (which also records it).
+  const applyState = (state: WidgetState) => {
+    hostState = state;
+    latestState = { ...latestState, hostState };
+    notifyBridge();
+    const fns = listeners.get('stateChange');
+    if (fns) for (const fn of fns) fn(state);
+  };
+
   const api: AgentPetAPI = {
     setState(state: WidgetState) {
-      hostState = state;
-      latestState = { ...latestState, hostState };
-      notifyBridge();
-      const fns = listeners.get('stateChange');
-      if (fns) for (const fn of fns) fn(state);
+      // Cancel any in-flight play() — explicit setState supersedes a one-shot.
+      if (playRevertTimer) { clearTimeout(playRevertTimer); playRevertTimer = null; }
+      persistentState = state;
+      applyState(state);
+    },
+    play(action: WidgetState, opts?: PlayOptions) {
+      if (playRevertTimer) clearTimeout(playRevertTimer);
+      const loops = Math.max(1, opts?.loops ?? 1);
+      const durationMs = opts?.durationMs ?? estimateLoopMs(action) * loops;
+      applyState(action);
+      playRevertTimer = setTimeout(() => {
+        playRevertTimer = null;
+        // Only revert if no one called setState() in the meantime.
+        if (hostState === action) applyState(persistentState);
+      }, durationMs);
     },
     say(text: string, opts?: SayOptions) {
       queue.push(text, opts ?? {});

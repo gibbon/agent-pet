@@ -108,7 +108,20 @@ Serve via your CDN, nginx, S3, GitHub Pages — anywhere. Then:
         data-codex-pet="totoro"></script>
 ```
 
-The bundle makes no calls back to any origin. The only outgoing request from `data-codex-pet` is the spritesheet `<img src>` to codex-pets.net's storage; if you want zero external requests, host the spritesheet yourself and use `data-image-url` instead.
+The bundle makes no calls back to any origin. The only outgoing request from `data-codex-pet` is the spritesheet `<img src>` to codex-pets.net's storage; for zero external requests, vendor the spritesheet locally:
+
+```bash
+# In a checkout of this repo
+pnpm vendor-pet homelander
+# → public/sprites/homelander.webp
+
+# Then in your HTML
+<script src="/static/agent-pet-widget.iife.js"
+        data-image-url="/sprites/homelander.webp"
+        data-use-codex-atlas></script>
+```
+
+Vendor multiple at once: `pnpm vendor-pet homelander guga totoro`.
 
 ### 3. npm package (React apps)
 
@@ -149,15 +162,35 @@ Bare attributes like `data-use-codex-atlas` (no value) read as truthy.
 ## API
 
 ```ts
-AgentPet.setState(state)    // change which atlas row plays
-AgentPet.say(text, opts?)   // open speech bubble; opts: { ttl?, link? }
-AgentPet.configure(opts)    // change name/glyph/accent/imageUrl/atlas
-AgentPet.mount(opts?)       // mount into DOM (auto-called unless data-auto-mount="false")
-AgentPet.unmount()          // remove from DOM
+AgentPet.setState(state)             // persistent mood — pet stays in this state
+AgentPet.play(action, opts?)         // one-shot action — auto-reverts to setState
+AgentPet.say(text, opts?)            // open speech bubble; opts: { ttl?, link? }
+AgentPet.configure(opts)             // change name/glyph/accent/imageUrl/atlas
+AgentPet.mount(opts?)                // mount into DOM (auto-called unless data-auto-mount="false")
+AgentPet.unmount()                   // remove from DOM
 AgentPet.on('stateChange', handler)
 AgentPet.off('stateChange', handler)
-AgentPet.mounted            // boolean — currently in the DOM?
+AgentPet.mounted                     // boolean — currently in the DOM?
 ```
+
+### `setState` vs `play`
+
+Use **`setState()`** for the pet's persistent mood — it holds until you change it:
+
+```ts
+AgentPet.setState('thinking');   // stays in 'thinking' until next setState
+```
+
+Use **`play()`** for transient feedback — the pet plays the action once, then reverts to whatever `setState` was last:
+
+```ts
+AgentPet.setState('idle');
+AgentPet.play('greeting');       // wave once, then back to idle
+AgentPet.play('success', { loops: 2 });   // celebrate twice
+AgentPet.play('jumping', { durationMs: 800 });  // explicit duration
+```
+
+Calling `setState()` while a `play()` is in flight cancels the auto-revert — explicit state takes precedence.
 
 ### States
 

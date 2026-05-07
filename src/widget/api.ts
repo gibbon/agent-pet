@@ -20,6 +20,13 @@ export interface SayOptions {
   link?: string;
 }
 
+export interface PlayOptions {
+  /** Number of times to play the action's animation loop. Default 1. */
+  loops?: number;
+  /** Override duration explicitly (ms). When set, takes precedence over loops. */
+  durationMs?: number;
+}
+
 export interface ConfigureOptions {
   name?: string;
   glyph?: string;
@@ -44,6 +51,10 @@ export interface MountOptions extends ConfigureOptions {
 
 export interface AgentPetAPI {
   setState(state: WidgetState): void;
+  /** Play a one-shot action, then return to the previous persistent state.
+   *  Use for transient feedback (e.g. wave on submit, jump on success) that
+   *  shouldn't replace the pet's underlying mood. */
+  play(action: WidgetState, opts?: PlayOptions): void;
   say(text: string, opts?: SayOptions): void;
   configure(opts: ConfigureOptions): void;
   on(event: WidgetEventName, handler: (...args: unknown[]) => void): void;

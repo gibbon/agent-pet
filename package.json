@@ -46,6 +46,7 @@
     "build:widget": "vite build --mode widget",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "vendor-pet": "node scripts/vendor-pet.mjs",
     "prepublishOnly": "pnpm build && pnpm test"
   },
   "peerDependencies": {
