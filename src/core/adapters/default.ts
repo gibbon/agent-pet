@@ -12,6 +12,7 @@ import type { PetAdapter, PetInteraction } from '../types';
 //   error      → failed row
 //   waiting    → waiting row (idle inactivity)
 const STATE_MAP: Record<string, PetInteraction> = {
+  // Semantic widget states
   idle:       'idle',
   active:     'hover',
   hover:      'hover',
@@ -32,6 +33,14 @@ const STATE_MAP: Record<string, PetInteraction> = {
   hello:      'greeting',
   welcome:    'greeting',
   waiting:    'waiting',
+  // Codex atlas row name aliases — pass them straight through so callers
+  // can drive the pet using the original row vocabulary.
+  'running-right': 'sending',
+  'running-left':  'leaving',
+  'waving':        'greeting',
+  'jumping':       'excited',
+  'review':        'thinking',
+  'running':       'working',
 };
 
 export const defaultPetAdapter: PetAdapter = {

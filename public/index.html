@@ -5,86 +5,164 @@
   <title>agent-pet — animated companion widget</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { background: #111; color: #eee; font-family: ui-monospace, monospace; max-width: 720px; margin: 0 auto; padding: 2rem; line-height: 1.5; }
+    body { background: #111; color: #eee; font-family: ui-monospace, monospace; max-width: 760px; margin: 0 auto; padding: 2rem; line-height: 1.5; }
     h1 { color: #4ade80; }
+    h2 { margin-top: 2rem; }
+    h3 { margin: 1.25rem 0 0.5rem; font-size: 0.95rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; }
     code, pre { background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 4px; }
     code { padding: 1px 5px; }
     pre { padding: 0.75rem 1rem; overflow-x: auto; }
     a { color: #7eb8da; }
-    button { margin: 0.25rem; padding: 0.4rem 0.8rem; background: #2a2a2a; color: #eee; border: 1px solid #444; cursor: pointer; font: inherit; }
+    button { margin: 0.2rem 0.15rem; padding: 0.35rem 0.7rem; background: #2a2a2a; color: #eee; border: 1px solid #444; cursor: pointer; font: inherit; font-size: 0.85rem; border-radius: 3px; }
     button:hover { background: #3a3a3a; }
-    .demo-controls { margin: 1rem 0; }
+    button.primary { background: #4ade8033; border-color: #4ade8055; color: #4ade80; }
+    button.primary:hover { background: #4ade8055; }
+    .group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem; }
+    .group small { opacity: 0.5; margin-right: 0.5rem; min-width: 110px; }
   </style>
 </head>
 <body>
   <h1>agent-pet</h1>
-  <p>Tiny animated companion-pet widget. Self-hostable, no backend, ~14KB gzip.</p>
+  <p>Tiny animated companion-pet widget. Self-hostable, no backend, ~14&nbsp;KB gzip.</p>
 
   <h2>One-line install</h2>
   <pre><code>&lt;script src="https://agent-pet.pages.dev/agent-pet-widget.iife.js"&gt;&lt;/script&gt;</code></pre>
-
   <p>Then drive it:</p>
   <pre><code>AgentPet.setState('thinking');
 AgentPet.say('Build done!', { link: '/results' });
-AgentPet.configure({ name: 'Rex', glyph: '🦖' });</code></pre>
+AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });</code></pre>
 
   <h2>Try it</h2>
-  <p>The pet you can see was loaded by the script tag at the bottom of this page.</p>
-  <div class="demo-controls">
-    <button onclick="AgentPet.setState('idle')">Idle</button>
-    <button onclick="AgentPet.setState('thinking')">Thinking</button>
-    <button onclick="AgentPet.setState('building')">Building</button>
-    <button onclick="AgentPet.setState('delegating')">Delegating</button>
-    <button onclick="AgentPet.setState('greeting')">Greeting</button>
-    <button onclick="AgentPet.setState('success')">Success</button>
-    <button onclick="AgentPet.setState('error')">Error</button>
-    <button onclick="AgentPet.say('Hello from the demo!', { ttl: 5000 })">Say</button>
+  <p>The pet bottom-right was loaded by the script tag in this page. Use the buttons below to drive it.</p>
+
+  <h3>Widget states <small style="text-transform: none;">— our semantic API</small></h3>
+  <div class="group">
+    <button onclick="AgentPet.setState('idle')">idle</button>
+    <button onclick="AgentPet.setState('thinking')">thinking</button>
+    <button onclick="AgentPet.setState('building')">building</button>
+    <button onclick="AgentPet.setState('delegating')">delegating</button>
+    <button onclick="AgentPet.setState('leaving')">leaving</button>
+    <button onclick="AgentPet.setState('greeting')">greeting</button>
+    <button onclick="AgentPet.setState('waiting')">waiting</button>
+    <button onclick="AgentPet.setState('success')">success</button>
+    <button onclick="AgentPet.setState('error')">error</button>
   </div>
-  <p>
-    <button onclick="loadHatchery('clippy', 'Clippy')">Load Clippy</button>
-    <button onclick="loadHatchery('totoro', 'Totoro')">Load Totoro</button>
-    <button onclick="loadHatchery('miss-minute', 'Miss Minute')">Load Miss Minute</button>
-  </p>
+
+  <h3>Codex atlas rows <small style="text-transform: none;">— same animations, original row vocabulary</small></h3>
+  <div class="group">
+    <button onclick="AgentPet.setState('idle')">idle</button>
+    <button onclick="AgentPet.setState('review')">review</button>
+    <button onclick="AgentPet.setState('running')">running</button>
+    <button onclick="AgentPet.setState('running-right')">running-right</button>
+    <button onclick="AgentPet.setState('running-left')">running-left</button>
+    <button onclick="AgentPet.setState('waving')">waving</button>
+    <button onclick="AgentPet.setState('waiting')">waiting</button>
+    <button onclick="AgentPet.setState('jumping')">jumping</button>
+    <button onclick="AgentPet.setState('failed')">failed</button>
+  </div>
+
+  <h3>Speech &amp; configure</h3>
+  <div class="group">
+    <button onclick="AgentPet.say('Hello from the demo!', { ttl: 5000 })">say('Hello…')</button>
+    <button onclick="AgentPet.say('Build finished in 3.2s', { link: 'https://github.com/gibbon/agent-pet', ttl: 8000 })">say with link</button>
+    <button class="primary" onclick="loadGuga()">Restore default (Guga)</button>
+  </div>
+
+  <h2>Pet catalog</h2>
+
+  <h3>Codex Pets <small style="text-transform: none;">— popular from <a href="https://codex-pets.net/">codex-pets.net</a></small></h3>
+  <div class="group" id="codex-pets-buttons"></div>
+
+  <h3>j20.nz Hatchery</h3>
+  <div class="group" id="hatchery-buttons"></div>
 
   <h2>Docs &amp; source</h2>
   <p>See the <a href="https://github.com/gibbon/agent-pet">GitHub repository</a> for the full README, API reference, and SRI hashes.</p>
 
   <p style="opacity: 0.7; font-size: 0.9em;">
     Apache-2.0 — animations ported from <a href="https://github.com/nexu-io/open-design">nexu-io/open-design</a>;
-    sample pets from <a href="https://j20.nz/hatchery/">j20.nz/hatchery/</a>.
+    pets from <a href="https://codex-pets.net/">codex-pets.net</a> and <a href="https://j20.nz/hatchery/">j20.nz/hatchery/</a>.
   </p>
 
   <script>
+    // ── Pet catalogs ───────────────────────────────────────────────────
+    const CODEX_BASE = 'https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets';
+    const codexPets = [
+      ['guga',              'Guga'],
+      ['ikkun',             'Ikkun'],
+      ['yuiju',             'Yuiju'],
+      ['liangzi',           'Liangzi'],
+      ['ikun-jj',           'IKUN'],
+      ['furina',            'Furina'],
+      ['xiaoxin',           'Crayon Shin-chan'],
+      ['homelander',        'Homelander'],
+      ['anon',              'Anon'],
+      ['momoco',            'Momoco'],
+      ['labubu-classic',    'Labubu'],
+      ['my-anya',           'Anya'],
+      ['nep',               'Nep'],
+      ['reze-anime',        'Reze'],
+      ['patamon',           'Patamon'],
+      ['nono',              'Nono'],
+      ['hanabi',            'Hanabi'],
+      ['sakura-moon',       'Sakura Moon'],
+      ['metal-greymon',     'Metal Greymon'],
+      ['kaisa',             'Kai’Sa'],
+      ['jin-woo',           'Jin-Woo'],
+      ['gpchan',            'gpchan'],
+      ['omegamon',          'Omegamon'],
+    ];
+    const hatcheryPets = [
+      ['clippy',      'Clippy'],
+      ['totoro',      'Totoro'],
+      ['miss-minute', 'Miss Minute'],
+      ['mini-sama',   'Mini Sama'],
+      ['tom',         'Tom'],
+      ['clawd',       'Clawd'],
+      ['broom-belle', 'Kiki'],
+      ['finderguy',   'Finder Guy'],
+    ];
+
+    function loadCodex(id, name) {
+      AgentPet.configure({
+        name,
+        imageUrl: `${CODEX_BASE}/${id}/spritesheet.webp`,
+        useCodexAtlas: true,
+        accent: '#7eb8da',
+      });
+    }
+    function loadGuga() { loadCodex('guga', 'Guga'); }
+
     let hatcheryCache = null;
     async function getHatchery() {
       if (hatcheryCache) return hatcheryCache;
       const r = await fetch('https://j20.nz/hatchery/api/pets.json');
-      const d = await r.json();
-      hatcheryCache = d.pets ?? [];
+      hatcheryCache = (await r.json()).pets ?? [];
       return hatcheryCache;
     }
     async function loadHatchery(id, name) {
       const pets = await getHatchery();
       const pet = pets.find(p => (p.petManifestId ?? p.id) === id);
-      if (!pet) return alert('not found');
-      AgentPet.configure({ name, imageUrl: pet.spritesheetUrl, useCodexAtlas: true, accent: '#7eb8da' });
+      if (!pet) return alert('not found: ' + id);
+      AgentPet.configure({ name, imageUrl: pet.spritesheetUrl, useCodexAtlas: true, accent: '#e89c5b' });
     }
+
+    function renderButtons(elId, list, onclick) {
+      const el = document.getElementById(elId);
+      el.innerHTML = list.map(([id, name]) =>
+        `<button onclick="${onclick}('${id}','${name.replace(/'/g, "\\'")}')">${name}</button>`
+      ).join('');
+    }
+    renderButtons('codex-pets-buttons', codexPets, 'loadCodex');
+    renderButtons('hatchery-buttons', hatcheryPets, 'loadHatchery');
   </script>
   <script src="./agent-pet-widget.iife.js" data-auto-mount="false"></script>
   <script>
-    // First-visit default: load Guga from codex-pets.net so visitors see the
-    // animated widget immediately. Returning visitors keep their selection.
-    // This listener is registered AFTER the IIFE's boot listener, so it fires
-    // second on DOMContentLoaded and `AgentPet` is guaranteed to exist.
+    // First-visit default: load Guga so visitors see the animated widget
+    // immediately. Returning visitors keep their selection.
+    // Registered AFTER the IIFE's boot listener so AgentPet exists when this fires.
     window.addEventListener('DOMContentLoaded', () => {
-      if (!localStorage.getItem('agent-pet:config')) {
-        AgentPet.configure({
-          name: 'Guga',
-          imageUrl: 'https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/guga/spritesheet.webp',
-          useCodexAtlas: true,
-          accent: '#7eb8da',
-        });
-      }
+      if (!localStorage.getItem('agent-pet:config')) loadGuga();
       AgentPet.mount();
     });
   </script>
