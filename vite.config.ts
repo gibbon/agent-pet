@@ -4,32 +4,27 @@ import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
 // Three build modes share one source tree:
-//   default        → dist/agent-pet.js          (ES, React external; for React apps)
-//   widget         → dist/agent-pet-widget.iife.js  (IIFE, Preact bundled; for <script> tags)
-//   widget-esm     → dist/agent-pet-widget.es.js    (ES, Preact bundled; for Svelte/Vue/etc apps)
+//   default        → dist/agent-pet.js              (ES, React external; for React apps)
+//   widget         → dist/agent-pet-widget.iife.js  (IIFE, vanilla DOM, no framework runtime)
+//   widget-esm     → dist/agent-pet-widget.es.js    (ES, vanilla DOM, no framework runtime)
 //
-// The widget builds alias react→preact/compat so non-React consumers get a
-// ~14 KB self-contained renderer with no React peer dep.
+// The widget builds DON'T use React or Preact — the renderer is pure DOM.
+// Only the React subpath (default mode) brings in a framework runtime, kept
+// as a peer dep for React apps.
 export default defineConfig(({ mode }) => {
   const isWidget = mode === 'widget';
   const isWidgetEsm = mode === 'widget-esm';
-  const usesPreact = isWidget || isWidgetEsm;
+  const isWidgetBuild = isWidget || isWidgetEsm;
 
   return {
     plugins: [
-      react(),
+      // The React plugin is only needed for the default (React component) build.
+      // Widget builds enter through src/widget/{index,widget-es}.ts which import
+      // no JSX, so the plugin would be inert — we omit it for cleanliness.
+      ...(!isWidgetBuild ? [react()] : []),
       // Generate .d.ts only on the main build — the widget builds reuse them.
-      ...(!usesPreact ? [dts({ include: ['src'] })] : []),
+      ...(!isWidgetBuild ? [dts({ include: ['src'] })] : []),
     ],
-    resolve: {
-      alias: usesPreact
-        ? {
-            react: 'preact/compat',
-            'react-dom': 'preact/compat',
-            'react/jsx-runtime': 'preact/jsx-runtime',
-          }
-        : {},
-    },
     build: {
       sourcemap: true,
       lib: {
@@ -50,17 +45,15 @@ export default defineConfig(({ mode }) => {
         formats: isWidget ? ['iife'] : ['es'],
       },
       rollupOptions: {
-        external: usesPreact ? [] : ['react', 'react-dom', 'react/jsx-runtime'],
+        external: isWidgetBuild ? [] : ['react', 'react-dom', 'react/jsx-runtime'],
         output: {
-          globals: usesPreact ? {} : { react: 'React', 'react-dom': 'ReactDOM' },
-          // Force the extracted CSS to be `pet.css` rather than entry-named.
+          globals: isWidgetBuild ? {} : { react: 'React', 'react-dom': 'ReactDOM' },
           assetFileNames: (asset) =>
             asset.name?.endsWith('.css') ? 'pet.css' : 'assets/[name]-[hash][extname]',
         },
       },
       outDir: 'dist',
-      // Only the main build clears dist; subsequent widget builds add to it.
-      emptyOutDir: !usesPreact,
+      emptyOutDir: !isWidgetBuild,
       copyPublicDir: false,
     },
   };
