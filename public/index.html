@@ -69,22 +69,24 @@ AgentPet.configure({ name: 'Rex', glyph: '🦖' });</code></pre>
       if (!pet) return alert('not found');
       AgentPet.configure({ name, imageUrl: pet.spritesheetUrl, useCodexAtlas: true, accent: '#7eb8da' });
     }
-    // First-visit default: pick an animated hatchery pet so visitors see what
-    // the widget actually does. Returning visitors keep whatever they chose.
-    window.addEventListener('DOMContentLoaded', async () => {
-      if (localStorage.getItem('agent-pet:config')) return;
-      try {
-        const pets = await getHatchery();
-        const pick = pets.find(p => (p.petManifestId ?? p.id) === 'mini-sama') ?? pets[0];
-        if (pick) AgentPet.configure({
-          name: 'Buddy',
-          imageUrl: pick.spritesheetUrl,
+  </script>
+  <script src="./agent-pet-widget.iife.js" data-auto-mount="false"></script>
+  <script>
+    // First-visit default: load Guga from codex-pets.net so visitors see the
+    // animated widget immediately. Returning visitors keep their selection.
+    // This listener is registered AFTER the IIFE's boot listener, so it fires
+    // second on DOMContentLoaded and `AgentPet` is guaranteed to exist.
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!localStorage.getItem('agent-pet:config')) {
+        AgentPet.configure({
+          name: 'Guga',
+          imageUrl: 'https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/guga/spritesheet.webp',
           useCodexAtlas: true,
           accent: '#7eb8da',
         });
-      } catch { /* offline — fall back to glyph default */ }
+      }
+      AgentPet.mount();
     });
   </script>
-  <script src="./agent-pet-widget.iife.js" data-name="Buddy" data-accent="#7eb8da"></script>
 </body>
 </html>
