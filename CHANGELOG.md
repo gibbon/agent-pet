@@ -61,7 +61,7 @@ If you're pinned to `/v0.1/` through `/v0.6/` on the CDN, **you'll need to bump 
 
 ## v0.6.0 — Complete pluggability (full i18n + icons + CSS variables)
 
-Closes the v0.5 plug-in story so deeply-integrated apps (open-design, FroeMic, future forks) can adopt agent-pet's PetSettings as their settings UI without forking.
+Closes the v0.5 plug-in story so deeply-integrated apps (e.g. apps with their own i18n, design system, and pet sources) can adopt agent-pet's PetSettings as their settings UI without forking.
 
 **Complete `messages` coverage:**
 
