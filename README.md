@@ -17,17 +17,24 @@ Live demo: **https://agent-pet.pages.dev**
         data-name="Rex" data-glyph="🦖" data-accent="#e74c3c"></script>
 ```
 
-**Animated atlas pet** — point at any Codex-format spritesheet:
+**Animated pet from [codex-pets.net](https://codex-pets.net/)** — just the pet id, the script resolves the spritesheet URL:
 
 ```html
 <script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
-        data-name="Guga"
-        data-image-url="https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/guga/spritesheet.webp"
-        data-use-codex-atlas
-        data-accent="#7eb8da"></script>
+        data-codex-pet="homelander"></script>
 ```
 
-You provide the spritesheet URL — we don't bake one in (sprites are 80-150KB each and belong to their creators). Browse [codex-pets.net](https://codex-pets.net/) or [j20.nz/hatchery/](https://j20.nz/hatchery/) for ready-made Codex-format pets, or roll your own (see [Codex Atlas Format](#codex-atlas-format)).
+Browse [codex-pets.net](https://codex-pets.net/) and pick any pet — the URL slug after `/pets/` is its id. Some examples: `homelander`, `guga`, `furina`, `patamon`, `clippy`, `totoro`.
+
+**Any Codex-format spritesheet** — point at a URL:
+
+```html
+<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+        data-image-url="https://your-cdn.example/sprite.webp"
+        data-use-codex-atlas></script>
+```
+
+We don't bake a default spritesheet into the bundle — they're 80-150KB each and belong to their creators. Roll your own following the [Codex Atlas Format](#codex-atlas-format) below.
 
 Drive the pet from JavaScript:
 
