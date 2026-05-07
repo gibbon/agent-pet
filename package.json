@@ -1,9 +1,32 @@
 {
   "name": "agent-pet",
   "version": "0.1.0",
-  "description": "Animated companion pet widget with state-driven atlas animations. Ported from nexu-io/open-design (Apache-2.0).",
+  "description": "Tiny animated companion-pet widget for any web app. Self-hosted, no backend, ~14 KB gzip. Drives 9 distinct atlas animations from a simple JS API.",
+  "keywords": [
+    "widget",
+    "pet",
+    "companion-pet",
+    "spritesheet",
+    "pixel-art",
+    "codex-pets",
+    "shadow-dom",
+    "react",
+    "preact"
+  ],
+  "homepage": "https://agent-pet.pages.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gibbon/agent-pet.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gibbon/agent-pet/issues"
+  },
+  "author": "Tom D",
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": [
+    "./dist/pet.css"
+  ],
   "exports": {
     ".": {
       "import": "./dist/agent-pet.js",
@@ -12,7 +35,9 @@
     "./css": "./dist/pet.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "vite build && vite build --mode widget && node scripts/sri.mjs",
@@ -20,7 +45,8 @@
     "build:es": "vite build",
     "build:widget": "vite build --mode widget",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build && pnpm test"
   },
   "peerDependencies": {
     "react": ">=18",
