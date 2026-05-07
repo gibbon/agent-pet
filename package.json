@@ -6,10 +6,10 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/agent-pet.es.js",
+      "import": "./dist/agent-pet.js",
       "types": "./dist/index.d.ts"
     },
-    "./css": "./dist/pet.css"
+    "./css": "./dist/agent-pet.css"
   },
   "files": [
     "dist"
@@ -31,6 +31,7 @@
     "preact": "^10.25.4",
     "typescript": "^5.7.3",
     "vite": "^6.3.5",
-    "vite-plugin-css-injected-by-js": "^3.5.2"
+    "vite-plugin-css-injected-by-js": "^3.5.2",
+    "vite-plugin-dts": "^5.0.0"
   }
 }
