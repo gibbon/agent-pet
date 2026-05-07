@@ -496,13 +496,17 @@ The CDN ships the bundle at multiple paths so old pins keep working forever:
 | Path | Cache | Stability |
 |---|---|---|
 | `/agent-pet-widget.iife.js` | 5 minutes | "Latest" — may break on new releases |
-| `/v0.7/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.3, never breaks |
-| `/v0.2/agent-pet-widget.iife.js` | 1 year, immutable | Vanilla DOM, no multi-pet API |
+| `/v0.7/agent-pet-widget.iife.js` | 1 year, immutable | Pluggable provider registry, current pin |
+| `/v0.6/agent-pet-widget.iife.js` | 1 year, immutable | Hardcoded codex-pets.net URL — broken since their 2026-05-08 storage migration |
+| `/v0.3/agent-pet-widget.iife.js` | 1 year, immutable | First multi-pet registry build |
+| `/v0.2/agent-pet-widget.iife.js` | 1 year, immutable | First vanilla-DOM build (no multi-pet API) |
 | `/v0.1/agent-pet-widget.iife.js` | 1 year, immutable | Original Preact-bundled build |
 
-**Pin to a versioned path in production.** Pre-1.0, every minor release (`0.1` → `0.2`) may include breaking changes; once the API stabilizes at 1.0 the version bucket becomes major-only (`/v1/`, `/v2/`).
+**Pin to `/v0.7/` in production.** Pre-1.0, every minor release (`0.1` → `0.2`) may include breaking changes; once the API stabilizes at 1.0 the version bucket becomes major-only (`/v1/`, `/v2/`).
 
 Breaking-change history:
+- **v0.7** — pluggable provider registry; `data-codex-pet` is now resolved via the registered codex provider. Hardcoded URL removed.
+- **v0.6.1** — fix for codex-pets.net storage migration (paper-over before v0.7).
 - **v0.3** — multi-pet registry API (additive but `window.AgentPet`'s shape changed for TypeScript users).
 - **v0.2** — vanilla DOM rewrite. Public API identical to v0.1; bundle internals changed entirely (Preact removed).
 
@@ -510,7 +514,7 @@ To discover what "latest" currently resolves to:
 
 ```bash
 curl -s https://agent-pet.pages.dev/version.json
-# {"version":"0.3.0","bucket":"v0.3","latestPath":"/"}
+# {"version":"0.7.0","bucket":"v0.7","latestPath":"/"}
 ```
 
 ## Subresource Integrity (SRI)
