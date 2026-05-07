@@ -1,10 +1,11 @@
 # agent-pet
 
-> A tiny animated companion-pet widget for any web app. Self-hostable, no backend, ~14 KB gzip.
+> A tiny animated companion-pet widget for any web app. Self-hostable, no backend, ~7 KB gzip. Vanilla DOM — no React, no Preact, no framework runtime.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Bundle size](https://img.shields.io/badge/gzip-~14_KB-success)](#)
+[![Bundle size](https://img.shields.io/badge/gzip-~7_KB-success)](#)
 [![Live demo](https://img.shields.io/badge/demo-agent--pet.pages.dev-7eb8da)](https://agent-pet.pages.dev)
+[![npm](https://img.shields.io/badge/npm-agent--pet-cb3837)](https://www.npmjs.com/package/agent-pet)
 
 Drop a single `<script>` tag, get a draggable animated pet bottom-right of any page. Drive it from your app:
 
@@ -23,7 +24,7 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });
 The fastest path — pick a pet from [codex-pets.net](https://codex-pets.net/) and reference it by id:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
@@ -41,7 +42,7 @@ Open a blank [CodePen](https://codepen.io/pen/), [JSFiddle](https://jsfiddle.net
   <button onclick="AgentPet.setState('building')">building</button>
   <button onclick="AgentPet.setState('success')">success</button>
   <button onclick="AgentPet.say('hello!', {ttl:4000})">say hello</button>
-  <script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+  <script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
           data-codex-pet="homelander"></script>
 </body>
 </html>
@@ -54,12 +55,12 @@ There's also a hosted [**playground page**](https://agent-pet.pages.dev/playgrou
 ## Features
 
 - **Zero backend** — pure static JS. The widget makes no network calls beyond the one you point it at.
-- **Self-contained** — no peer dependencies. Bundles its own tiny Preact runtime; ~14 KB gzip total.
+- **Self-contained** — no peer dependencies, no framework runtime. Pure vanilla DOM; ~7 KB gzip total.
 - **Shadow DOM isolation** — won't conflict with host page styles.
 - **Draggable + persistent** — position and pet selection persist via `localStorage`.
 - **9 distinct animations** — drives all rows of the Codex atlas spec (idle, thinking, building, delegating, leaving, greeting, waiting, success, error).
 - **Speech bubbles** — `AgentPet.say(text, { link })` for inline status with optional click-through.
-- **Versioned URLs** — pin to `/v0.1/` for stability; immutable + 1-year cache.
+- **Versioned URLs** — pin to `/v0.3/` for stability; immutable + 1-year cache.
 - **SRI-pinnable** — SHA-384 hashes published per release.
 - **Versatile mounting** — auto-mount or programmatic; mount into any element via `target`.
 
@@ -72,21 +73,21 @@ There's also a hosted [**playground page**](https://agent-pet.pages.dev/playgrou
 **Minimal — emoji glyph, zero config:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
         data-name="Rex" data-glyph="🦖" data-accent="#e74c3c"></script>
 ```
 
 **Animated pet from codex-pets.net by id:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
 **Your own Codex-format spritesheet:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
         data-image-url="https://your-cdn.example/your-sprite.webp"
         data-use-codex-atlas></script>
 ```
@@ -98,7 +99,7 @@ We don't bake a default spritesheet into the bundle — they're 80–150 KB each
 The bundle is plain static JS — download it, serve it from your own host:
 
 ```bash
-curl -O https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js
+curl -O https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js
 ```
 
 Serve via your CDN, nginx, S3, GitHub Pages — anywhere. Then:
@@ -136,7 +137,7 @@ The package exposes three subpath entries; pick the one that fits your app:
 | Subpath | Use case | React peer dep? |
 |---|---|---|
 | `agent-pet` | React apps — import the React components | **Yes** (React 18+) |
-| `agent-pet/widget` | Svelte / Vue / Solid / Angular / vanilla — self-contained ES module factory, Preact bundled internally | No |
+| `agent-pet/widget` | Svelte / Vue / Solid / Angular / vanilla — self-contained ES module factory, vanilla DOM, no framework runtime | No |
 | `agent-pet/iife` | Direct path to the IIFE bundle if you want a script-tag dist | No |
 
 #### React apps — `agent-pet`
@@ -156,7 +157,7 @@ function App({ appState }) {
 
 #### Any other framework — `agent-pet/widget`
 
-A self-contained ES module that exports `createAgentPetAPI()`. Bundles Preact internally (~16 KB gzip), no React peer dep. Your bundler (Vite/webpack/Rollup) tree-shakes and inlines it like any other dep — no manual copy step.
+A self-contained ES module that exports `createAgentPetAPI()` plus `createRegistry()` for multi-pet apps. Pure vanilla DOM (~7.7 KB gzip), no framework runtime. Your bundler (Vite/webpack/Rollup) tree-shakes and inlines it like any other dep — no manual copy step.
 
 ```ts
 import { createAgentPetAPI } from 'agent-pet/widget';
@@ -374,20 +375,26 @@ By default the script auto-boots on `DOMContentLoaded`. Disable to take full con
 
 ## Versioning
 
-The CDN ships the bundle at two paths:
+The CDN ships the bundle at multiple paths so old pins keep working forever:
 
 | Path | Cache | Stability |
 |---|---|---|
 | `/agent-pet-widget.iife.js` | 5 minutes | "Latest" — may break on new releases |
-| `/v0.1/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.1, never breaks |
+| `/v0.3/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.3, never breaks |
+| `/v0.2/agent-pet-widget.iife.js` | 1 year, immutable | Vanilla DOM, no multi-pet API |
+| `/v0.1/agent-pet-widget.iife.js` | 1 year, immutable | Original Preact-bundled build |
 
-**Pin to a versioned path in production.** Pre-1.0, every minor release (`0.1` → `0.2`) may include breaking changes; once the API stabilizes at 1.0, the version bucket becomes major-only (`/v1/`, `/v2/`).
+**Pin to a versioned path in production.** Pre-1.0, every minor release (`0.1` → `0.2`) may include breaking changes; once the API stabilizes at 1.0 the version bucket becomes major-only (`/v1/`, `/v2/`).
+
+Breaking-change history:
+- **v0.3** — multi-pet registry API (additive but `window.AgentPet`'s shape changed for TypeScript users).
+- **v0.2** — vanilla DOM rewrite. Public API identical to v0.1; bundle internals changed entirely (Preact removed).
 
 To discover what "latest" currently resolves to:
 
 ```bash
 curl -s https://agent-pet.pages.dev/version.json
-# {"version":"0.1.0","bucket":"v0.1","latestPath":"/"}
+# {"version":"0.3.0","bucket":"v0.3","latestPath":"/"}
 ```
 
 ## Subresource Integrity (SRI)
@@ -395,12 +402,12 @@ curl -s https://agent-pet.pages.dev/version.json
 Pin the bundle to a hash so browsers reject substituted code if the CDN is compromised:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
         integrity="sha384-..."
         crossorigin="anonymous"></script>
 ```
 
-Each release publishes hashes at `/v0.1/SRI.json`:
+Each release publishes hashes at `/v0.3/SRI.json`:
 
 ```json
 {

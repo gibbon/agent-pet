@@ -25,19 +25,19 @@
 </head>
 <body>
   <h1>agent-pet</h1>
-  <p>Tiny animated companion-pet widget. Self-hostable, no backend, ~14&nbsp;KB gzip.</p>
+  <p>Tiny animated companion-pet widget. Self-hostable, no backend, ~7&nbsp;KB gzip. Vanilla DOM, no framework runtime.</p>
 
   <h2>One-line install</h2>
   <p><strong>Minimal</strong> — emoji-glyph pet, zero config:</p>
-  <pre><code>&lt;script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"&gt;&lt;/script&gt;</code></pre>
+  <pre><code>&lt;script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"&gt;&lt;/script&gt;</code></pre>
   <p><strong>Animated pet from <a href="https://codex-pets.net/">codex-pets.net</a></strong> — just the pet id:</p>
-  <pre><code>&lt;script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+  <pre><code>&lt;script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
         data-codex-pet="homelander"&gt;&lt;/script&gt;</code></pre>
   <p><strong>Any Codex-format spritesheet</strong> — provide your own URL:</p>
-  <pre><code>&lt;script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+  <pre><code>&lt;script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
         data-image-url="https://your-cdn.example/sprite.webp"
         data-use-codex-atlas&gt;&lt;/script&gt;</code></pre>
-  <p>Pin to <code>/v0.1/</code> for stable URLs (immutable, long cache); the bare path is "latest" and may break across releases.</p>
+  <p>Pin to <code>/v0.3/</code> for stable URLs (immutable, long cache); the bare path is "latest" and may break across releases.</p>
   <p>Then drive it from JS:</p>
   <pre><code>AgentPet.setState('thinking');
 AgentPet.say('Build done!', { link: '/results' });
