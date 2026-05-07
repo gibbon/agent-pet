@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AgentPet — auto-mount</title>
+  <style>
+    body { background: #111; color: #eee; font-family: monospace; padding: 2rem; }
+    button { margin: 0.25rem; padding: 0.5rem 1rem; background: #2a2a2a; color: #eee; border: 1px solid #444; cursor: pointer; }
+    button:hover { background: #3a3a3a; }
+  </style>
+</head>
+<body>
+  <h1>Auto-mount integration</h1>
+  <p>Pet should appear bottom-right on page load with no extra JS.</p>
+  <p>
+    <button onclick="AgentPet.setState('thinking')">Thinking</button>
+    <button onclick="AgentPet.setState('building')">Building</button>
+    <button onclick="AgentPet.setState('delegating')">Delegating</button>
+    <button onclick="AgentPet.setState('success')">Success</button>
+    <button onclick="AgentPet.setState('error')">Error</button>
+    <button onclick="AgentPet.setState('idle')">Idle</button>
+  </p>
+  <p>
+    <button onclick="AgentPet.say('Build finished in 3.2s', { link: '/results', ttl: 8000 })">Say with link</button>
+    <button onclick="AgentPet.configure({ name: 'Rex', glyph: '🦖', accent: '#e74c3c' })">Configure → Rex</button>
+  </p>
+  <script>window.addEventListener('DOMContentLoaded', () => {
+    if (window.AgentPet) {
+      AgentPet.on('stateChange', (s) => console.log('state →', s));
+    }
+  });</script>
+  <script src="../dist/agent-pet-widget.iife.js"
+          data-name="Test Pet"
+          data-glyph="🦄"
+          data-accent="#4ade80"></script>
+</body>
+</html>

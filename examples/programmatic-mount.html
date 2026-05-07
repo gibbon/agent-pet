@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AgentPet — programmatic mount</title>
+  <style>
+    body { background: #111; color: #eee; font-family: monospace; padding: 2rem; padding-right: 280px; }
+    button { margin: 0.25rem; padding: 0.5rem 1rem; background: #2a2a2a; color: #eee; border: 1px solid #444; cursor: pointer; }
+    #sidebar { position: fixed; right: 0; top: 0; bottom: 0; width: 240px; background: #1c1c1c; border-left: 1px solid #333; padding: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Programmatic-mount integration</h1>
+  <p>Pet does NOT appear until you click "Mount". Try mounting into the sidebar.</p>
+  <button id="mount-body">Mount on body</button>
+  <button id="mount-sidebar">Mount in sidebar</button>
+  <button id="unmount">Unmount</button>
+  <p>Mounted: <span id="status">false</span></p>
+  <div id="sidebar"><strong>Sidebar</strong></div>
+  <script src="../dist/agent-pet-widget.iife.js" data-auto-mount="false"></script>
+  <script>
+    const status = document.getElementById('status');
+    const refresh = () => status.textContent = String(AgentPet.mounted);
+    refresh();
+    document.getElementById('mount-body').onclick = () => {
+      AgentPet.mount({ name: 'BodyPet', glyph: '🐶', accent: '#3498db' });
+      refresh();
+    };
+    document.getElementById('mount-sidebar').onclick = () => {
+      AgentPet.mount({ target: document.getElementById('sidebar'), name: 'SidebarPet', glyph: '🦊', accent: '#e67e22' });
+      refresh();
+    };
+    document.getElementById('unmount').onclick = () => {
+      AgentPet.unmount();
+      refresh();
+    };
+  </script>
+</body>
+</html>
