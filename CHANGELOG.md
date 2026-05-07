@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.5.0 — Pluggable PetSettings (i18n + catalog compose)
+
+Extension points so app-integrators can replace agent-pet's PetSettings UI surface via configuration rather than copy-pasting the source.
+
+**i18n via `messages` prop:**
+```tsx
+import { type PetMessages } from 'agent-pet';
+
+<PetSettings messages={{ adopt: t('pet.adopt'), customizePet: t('pet.customize') }} />
+```
+
+`PetMessages` covers all user-facing strings in PetSettings + PetRail. Any omitted key falls back to the English default — translate one string at a time, no need to ship a full locale.
+
+Defaults exported as `DEFAULT_PET_MESSAGES`. Helper: `mergeMessages(overrides)`.
+
+**`composeCatalogs([...])` helper:**
+```ts
+import { composeCatalogs, DefaultCatalogClient } from 'agent-pet';
+
+const merged = composeCatalogs([
+  daemonCatalog,                     // local pets — highest priority
+  privateOrgCatalog,                 // org-private hosted catalog
+  new DefaultCatalogClient(),        // public community fallback
+]);
+<PetProvider catalog={merged}>...</PetProvider>
+```
+
+Pets from earlier clients win on id collision; both `fetchList()` and `sync()` aggregate across sources.
+
+**Use case:** open-design (and similar deeply-integrated apps) can now plug their daemon-discovered pets, proprietary sync, and i18n into agent-pet's PetSettings rather than maintain their own ~1000-LOC UI. Estimated migration cost from custom-built to agent-pet wrapper: ~200 LOC of adapter code.
+
+CDN: `/v0.5/agent-pet-widget.iife.js`. Older paths immutable.
+
 ## v0.4.0 — Page event observers
 
 Opt-in DOM event listeners that wire common page activity to pet state changes — no host JavaScript required.

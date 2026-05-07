@@ -10,6 +10,10 @@ export { PetRail } from './react/PetRail';
 
 // Core logic and types
 export * from './core/index';
+export { composeCatalogs } from './core/compose-catalogs';
+
+// i18n message contract for PetSettings + PetRail
+export { DEFAULT_PET_MESSAGES, mergeMessages, type PetMessages } from './react/messages';
 
 // Widget API types — for non-React frameworks driving window.AgentPet via getAgentPet().
 export type {

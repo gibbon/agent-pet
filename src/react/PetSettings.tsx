@@ -12,6 +12,7 @@ import { loadPetImageFromFile } from '../core/image';
 import { PetSpriteFace } from './PetSpriteFace';
 import { usePetContext } from './context';
 import { IconCheck, IconClose, IconCopy, IconDownload, IconEye, IconRefresh, IconSparkles, IconSpinner, IconUpload } from './icons';
+import { mergeMessages } from './messages';
 
 const ACCENT_SWATCHES = ['#c96442', '#2348b8', '#1f7a3a', '#6c3aa6', '#d97a26', '#9c2a25', '#74716b', '#0d0c0a'];
 
@@ -21,8 +22,15 @@ type PetSourceTab = 'builtIn' | 'custom' | 'community';
 
 interface AtlasPreview { dataUrl: string; width: number; height: number; }
 
-export function PetSettings() {
+interface PetSettingsProps {
+  /** Override user-facing strings for i18n. Any omitted key falls back to
+   *  the English default exported as DEFAULT_PET_MESSAGES. */
+  messages?: Partial<import('./messages').PetMessages>;
+}
+
+export function PetSettings({ messages: messageOverrides }: PetSettingsProps = {}) {
   const { pet, setPet, catalog } = usePetContext();
+  const m = mergeMessages(messageOverrides);
   const glyphId = useId();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const atlasInputRef = useRef<HTMLInputElement | null>(null);
@@ -227,11 +235,11 @@ export function PetSettings() {
         </div>
         {isActive ? (
           <button type="button" style={{ ...s.btn, ...s.btnActive }} disabled aria-pressed>
-            <IconCheck size={11} /><span>Active</span>
+            <IconCheck size={11} /><span>{m.active}</span>
           </button>
         ) : inLibrary ? (
           <button type="button" style={s.btn} onClick={() => switchToLibraryPet(libraryEntry!)} disabled={catalogAdopting !== null}>
-            <IconSparkles size={11} /><span>Switch</span>
+            <IconSparkles size={11} /><span>{m.switch}</span>
           </button>
         ) : (
           <button type="button" style={s.btn} onClick={() => void adoptCatalogPet(p)} disabled={adopting || catalogAdopting !== null}>
@@ -257,11 +265,11 @@ export function PetSettings() {
         <div style={{ display: 'flex', gap: 4 }}>
           {isActive ? (
             <button type="button" style={{ ...s.btn, ...s.btnActive, flex: 1 }} disabled>
-              <IconCheck size={11} /><span>Active</span>
+              <IconCheck size={11} /><span>{m.active}</span>
             </button>
           ) : (
             <button type="button" style={{ ...s.btn, flex: 1 }} onClick={() => switchToLibraryPet(entry)}>
-              <IconSparkles size={11} /><span>Switch</span>
+              <IconSparkles size={11} /><span>{m.switch}</span>
             </button>
           )}
           <button type="button" style={{ ...s.btn, ...s.btnGhost, padding: '4px 7px' }} onClick={() => removeFromLibrary(entry.id)} title="Remove from collection">
@@ -277,7 +285,7 @@ export function PetSettings() {
       {/* Header */}
       <div style={s.sectionHead}>
         <div>
-          <h3 style={s.h3}>Companion Pet</h3>
+          <h3 style={s.h3}>{m.companionPet}</h3>
           <p style={s.hint}>An animated companion that reacts to your agent's state.</p>
         </div>
         <button type="button" style={{ ...s.btn, ...(pet.enabled ? s.btnActive : {}) }} onClick={() => update({ enabled: !pet.enabled, adopted: pet.adopted || pet.petId !== '' })} disabled={!pet.adopted} title={pet.enabled ? 'Dismiss pet' : 'Wake pet'}>
@@ -316,7 +324,7 @@ export function PetSettings() {
           {/* Custom head */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <div>
-              <strong style={{ fontSize: 13 }}>Your pet</strong>
+              <strong style={{ fontSize: 13 }}>{m.yourPet}</strong>
               <p style={s.hint}>Upload a sprite, set the name and accent colour.</p>
             </div>
             <button type="button" style={{ ...s.btn, ...(pet.adopted && pet.petId === CUSTOM_PET_ID ? s.btnActive : {}) }} onClick={() => adopt(CUSTOM_PET_ID)}>
@@ -380,7 +388,7 @@ export function PetSettings() {
                   <p style={s.hint}>Choose one row or adopt the full atlas for interactive animations.</p>
                 </div>
                 <button type="button" style={{ ...s.btn, ...s.btnGhost }} onClick={() => setAtlasPreview(null)} disabled={atlasBusy}>
-                  <IconClose size={11} /><span>Cancel</span>
+                  <IconClose size={11} /><span>{m.cancel}</span>
                 </button>
               </div>
               <div style={{ width: '100%', height: 80, backgroundImage: `url(${atlasPreview.dataUrl})`, backgroundSize: '100% auto', backgroundRepeat: 'no-repeat', borderRadius: 6, marginBottom: 8 }} aria-hidden />
@@ -445,7 +453,7 @@ export function PetSettings() {
           {/* My Pets — downloaded collection */}
           {library.length > 0 && (
             <div style={{ marginBottom: 20 }}>
-              <strong style={{ fontSize: 13 }}>My pets</strong>
+              <strong style={{ fontSize: 13 }}>{m.myPets}</strong>
               <p style={{ ...s.hint, marginBottom: 8 }}>Your downloaded collection — click Switch to activate.</p>
               <div style={s.grid}>{library.map(renderLibraryCard)}</div>
             </div>
@@ -455,7 +463,7 @@ export function PetSettings() {
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
               <div>
-                <strong style={{ fontSize: 13 }}>Community catalog</strong>
+                <strong style={{ fontSize: 13 }}>{m.communityCatalog}</strong>
                 <p style={s.hint}>Pets from Codex Pet Share and j20 Hatchery.</p>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -465,7 +473,7 @@ export function PetSettings() {
                 </button>
                 <button type="button" style={{ ...s.btn, ...s.btnGhost }} onClick={() => void refreshCatalog()} disabled={catalogLoading}>
                   {catalogLoading ? <IconSpinner size={11} /> : <IconRefresh size={11} />}
-                  <span>Refresh</span>
+                  <span>{m.refresh}</span>
                 </button>
               </div>
             </div>

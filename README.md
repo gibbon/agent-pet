@@ -24,7 +24,7 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });
 The fastest path — pick a pet from [codex-pets.net](https://codex-pets.net/) and reference it by id:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.5/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
@@ -42,7 +42,7 @@ Open a blank [CodePen](https://codepen.io/pen/), [JSFiddle](https://jsfiddle.net
   <button onclick="AgentPet.setState('building')">building</button>
   <button onclick="AgentPet.setState('success')">success</button>
   <button onclick="AgentPet.say('hello!', {ttl:4000})">say hello</button>
-  <script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
+  <script src="https://agent-pet.pages.dev/v0.5/agent-pet-widget.iife.js"
           data-codex-pet="homelander"></script>
 </body>
 </html>
@@ -60,7 +60,7 @@ There's also a hosted [**playground page**](https://agent-pet.pages.dev/playgrou
 - **Draggable + persistent** — position and pet selection persist via `localStorage`.
 - **9 distinct animations** — drives all rows of the Codex atlas spec (idle, thinking, building, delegating, leaving, greeting, waiting, success, error).
 - **Speech bubbles** — `AgentPet.say(text, { link })` for inline status with optional click-through.
-- **Versioned URLs** — pin to `/v0.4/` for stability; immutable + 1-year cache.
+- **Versioned URLs** — pin to `/v0.5/` for stability; immutable + 1-year cache.
 - **SRI-pinnable** — SHA-384 hashes published per release.
 - **Versatile mounting** — auto-mount or programmatic; mount into any element via `target`.
 
@@ -73,21 +73,21 @@ There's also a hosted [**playground page**](https://agent-pet.pages.dev/playgrou
 **Minimal — emoji glyph, zero config:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.5/agent-pet-widget.iife.js"
         data-name="Rex" data-glyph="🦖" data-accent="#e74c3c"></script>
 ```
 
 **Animated pet from codex-pets.net by id:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.5/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
 **Your own Codex-format spritesheet:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.5/agent-pet-widget.iife.js"
         data-image-url="https://your-cdn.example/your-sprite.webp"
         data-use-codex-atlas></script>
 ```
@@ -99,7 +99,7 @@ We don't bake a default spritesheet into the bundle — they're 80–150 KB each
 The bundle is plain static JS — download it, serve it from your own host:
 
 ```bash
-curl -O https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js
+curl -O https://agent-pet.pages.dev/v0.5/agent-pet-widget.iife.js
 ```
 
 Serve via your CDN, nginx, S3, GitHub Pages — anywhere. Then:
@@ -369,6 +369,53 @@ Default off. Observers don't watch input field contents — only events that fir
 
 See [`examples/observe.html`](examples/observe.html) for a working demo.
 
+### Pluggable PetSettings — i18n + custom catalogs
+
+Apps with their own state model, i18n, or pet-source backends can wire all of it through `PetSettings` props rather than building a custom settings UI. This is the integration path for projects like [open-design](https://github.com/nexu-io/open-design) that have a daemon-scanned local pet folder, a proprietary community sync, and multi-language support.
+
+**`messages` prop for i18n:**
+
+```tsx
+import { PetSettings, type PetMessages } from 'agent-pet';
+
+<PetSettings messages={{
+  adopt: t('pet.adopt'),
+  switch: t('pet.switch'),
+  customizePet: t('pet.customize'),
+  // ...any subset; missing keys fall back to the English defaults
+}} />
+```
+
+The full `PetMessages` interface is exported; `DEFAULT_PET_MESSAGES` is the English default if you want to derive translations.
+
+**`composeCatalogs([...])` for multiple pet sources:**
+
+```ts
+import { composeCatalogs, DefaultCatalogClient, type CatalogClient } from 'agent-pet';
+
+const daemonCatalog: CatalogClient = {
+  async fetchList() {
+    const local = await fetch('/api/codex-pets').then(r => r.json());
+    return { pets: local.pets, rootDir: '~/.codex/pets/' };
+  },
+  async sync() {
+    const r = await fetch('/api/codex-pets/sync', { method: 'POST' });
+    return await r.json();
+  },
+};
+
+const merged = composeCatalogs([
+  daemonCatalog,                     // local pets — highest priority
+  new DefaultCatalogClient(),        // codex-pets.net + j20.nz fallback
+]);
+
+<PetProvider catalog={merged}>
+  <PetSettings />
+</PetProvider>
+```
+
+Pets from earlier catalogs in the list win on id collisions. Both `fetchList()` and `sync()` aggregate across sources, so a single Refresh button hits everything.
+
 ### Multiple pets on one page
 
 `window.AgentPet` is a registry — `setState`/`say`/`configure`/etc operate on a default `'main'` pet, and you can spawn additional named pets with `create(id, opts)`:
@@ -421,7 +468,7 @@ The CDN ships the bundle at multiple paths so old pins keep working forever:
 | Path | Cache | Stability |
 |---|---|---|
 | `/agent-pet-widget.iife.js` | 5 minutes | "Latest" — may break on new releases |
-| `/v0.4/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.3, never breaks |
+| `/v0.5/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.3, never breaks |
 | `/v0.2/agent-pet-widget.iife.js` | 1 year, immutable | Vanilla DOM, no multi-pet API |
 | `/v0.1/agent-pet-widget.iife.js` | 1 year, immutable | Original Preact-bundled build |
 
@@ -443,12 +490,12 @@ curl -s https://agent-pet.pages.dev/version.json
 Pin the bundle to a hash so browsers reject substituted code if the CDN is compromised:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.5/agent-pet-widget.iife.js"
         integrity="sha384-..."
         crossorigin="anonymous"></script>
 ```
 
-Each release publishes hashes at `/v0.4/SRI.json`:
+Each release publishes hashes at `/v0.5/SRI.json`:
 
 ```json
 {

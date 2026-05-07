@@ -9,10 +9,13 @@ import type { PetConfig } from '../core/types';
 import { PetSpriteFace } from './PetSpriteFace';
 import { usePetContext } from './context';
 import { IconChevronLeft, IconChevronRight, IconClose } from './icons';
+import { mergeMessages, type PetMessages } from './messages';
 
 interface Props {
   onOpenPetSettings?: () => void;
   onHide?: () => void;
+  /** Override user-facing strings for i18n. */
+  messages?: Partial<PetMessages>;
 }
 
 const COLLAPSED_KEY = 'agent-pet:rail-collapsed';
@@ -22,8 +25,9 @@ function loadCollapsed(): boolean {
   try { return window.localStorage.getItem(COLLAPSED_KEY) === '1'; } catch { return false; }
 }
 
-export function PetRail({ onOpenPetSettings, onHide }: Props) {
+export function PetRail({ onOpenPetSettings, onHide, messages: messageOverrides }: Props) {
   const { pet, setPet } = usePetContext();
+  const m = mergeMessages(messageOverrides);
   const [collapsed, setCollapsed] = useState<boolean>(() => loadCollapsed());
 
   useEffect(() => {
@@ -97,14 +101,14 @@ export function PetRail({ onOpenPetSettings, onHide }: Props) {
         </span>
         <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
           <span style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{customPet.custom.name || 'Custom'}</span>
-          <span style={{ fontSize: 10, opacity: 0.5 }}>Your pet</span>
+          <span style={{ fontSize: 10, opacity: 0.5 }}>{m.yourPet}</span>
         </span>
       </button>
 
       {/* Customize link */}
       {onOpenPetSettings && (
         <button type="button" onClick={onOpenPetSettings} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 10px', marginTop: 'auto', background: 'transparent', border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer', fontSize: 11, color: 'inherit', opacity: 0.7, width: '100%' }}>
-          <span>✨</span><span>Customize pet</span>
+          <span>✨</span><span>{m.customizePet}</span>
         </button>
       )}
     </aside>
