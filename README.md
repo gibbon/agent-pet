@@ -625,6 +625,50 @@ Connect a fork to Cloudflare Pages with:
 
 Or any static host — Netlify, GitHub Pages, S3 + CloudFront, your own nginx.
 
+## Using pets installed via `codex-pets` CLI
+
+The official [`codex-pets`](https://www.npmjs.com/package/codex-pets) CLI installs pets to `~/.codex/pets/<id>/` for use with the Codex CLI's hatch-pet skill and tools like [open-design](https://github.com/nexu-io/open-design)'s daemon. agent-pet can serve those same files via the provider registry — point any static server at the directory and register a provider:
+
+```bash
+# Step 1: install some pets
+npx codex-pets add yukina
+npx codex-pets add patamon
+
+# Step 2: serve them statically (any tool that serves a directory)
+python3 -m http.server 8080 --directory ~/.codex/pets
+# or:  npx serve ~/.codex/pets -p 8080
+```
+
+```js
+// Step 3: register a local provider on whichever page hosts the widget
+AgentPet.providers.register({
+  id: 'local',
+  label: 'Locally installed',
+  resolveSpritesheet: (id) => `http://localhost:8080/${id}/spritesheet.webp`,
+  useCodexAtlas: true,
+});
+```
+
+```html
+<!-- Step 4: reference by id, same as any registered provider -->
+<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
+        data-local-pet="yukina"></script>
+```
+
+If your app already serves static files (Next.js `public/`, an existing nginx etc), the simplest move is to **symlink or bind-mount `~/.codex/pets/` into your static-asset path** so every locally-installed pet is reachable at a stable URL like `/codex-pets/<id>/spritesheet.webp`. Your `local` provider then uses that URL pattern — no separate static server.
+
+For Docker setups, add a read-only bind-mount of the host's `~/.codex/pets` into the container's `public/codex-pets` directory:
+
+```yaml
+# docker-compose.yml
+services:
+  app:
+    volumes:
+      - ${HOME}/.codex/pets:/app/public/codex-pets:ro
+```
+
+Now `npx codex-pets add yukina` on the host puts the pet in the container's static dir automatically. Register the provider with the relative URL (`/codex-pets/${id}/spritesheet.webp`) and you're done — no API code, no daemon, just static files.
+
 ## Related projects
 
 The Codex Pets ecosystem is small but growing — a few neighbours worth knowing:
