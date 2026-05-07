@@ -116,7 +116,9 @@ export function createAgentPetAPI(): AgentPetAPI {
         const customPatch: Record<string, unknown> = {
           name: opts.name, glyph: opts.glyph, accent: opts.accent, imageUrl: opts.imageUrl,
         };
-        if (opts.useCodexAtlas) customPatch.atlas = CODEX_ATLAS_LAYOUT;
+        // `atlas` (explicit custom layout) wins over `useCodexAtlas` (shorthand).
+        if (opts.atlas) customPatch.atlas = opts.atlas;
+        else if (opts.useCodexAtlas) customPatch.atlas = CODEX_ATLAS_LAYOUT;
         const custom = { ...defaultCustomPet(), ...(current.custom ?? {}) };
         for (const [k, v] of Object.entries(customPatch)) {
           if (v !== undefined) (custom as Record<string, unknown>)[k] = v;

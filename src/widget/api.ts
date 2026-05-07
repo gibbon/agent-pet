@@ -1,3 +1,7 @@
+import type { PetAtlasLayout } from '../core/types';
+
+export type { PetAtlasLayout, PetAtlasRowDef } from '../core/types';
+
 export type WidgetState =
   | 'idle'        // idle row
   | 'thinking'    // review row
@@ -24,8 +28,13 @@ export interface ConfigureOptions {
   storageKey?: string;
   /** Apply the standard 8×9 Codex atlas layout. Use with `imageUrl` pointing
    *  at a spritesheet from the Codex Hatchery (j20.nz) or one produced by
-   *  the Codex hatch-pet skill. */
+   *  the Codex hatch-pet skill. Mutually exclusive with `atlas` — if both
+   *  are set, `atlas` wins. */
   useCodexAtlas?: boolean;
+  /** Custom atlas layout for spritesheets that don't follow the Codex 8×9
+   *  format. Each `rowsDef` entry maps a row index to a named row id (e.g.
+   *  'idle', 'walking') with its frame count and FPS. */
+  atlas?: PetAtlasLayout;
 }
 
 export interface MountOptions extends ConfigureOptions {

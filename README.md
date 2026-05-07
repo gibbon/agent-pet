@@ -254,7 +254,30 @@ A spritesheet packed as an 8×9 grid (1536×1872 px standard). Each row is one n
 | `running` | 6 | 8 |
 | `review` | 6 | 6 |
 
-Set `useCodexAtlas: true` (or `data-use-codex-atlas`) to apply this layout to any spritesheet that follows it. To define your own layout, omit the flag and pass an `atlas` field via `configure()`.
+Set `useCodexAtlas: true` (or `data-use-codex-atlas`) to apply this layout to any spritesheet that follows it.
+
+### Custom atlas layouts
+
+For spritesheets that don't follow the Codex 8×9 format, pass an `atlas` object describing your grid:
+
+```js
+AgentPet.configure({
+  imageUrl: 'https://example.com/my-pet.png',
+  atlas: {
+    cols: 4,
+    rows: 3,
+    rowsDef: [
+      { index: 0, id: 'idle',     frames: 4, fps: 6 },
+      { index: 1, id: 'walking',  frames: 4, fps: 8 },
+      { index: 2, id: 'jumping',  frames: 3, fps: 7 },
+    ],
+  },
+});
+```
+
+`rowsDef` maps row indices (0-based, top to bottom) to row ids that `setState()` can target. The standard ids the widget already understands are `idle`, `running`, `running-right`, `running-left`, `waving`, `jumping`, `failed`, `waiting`, and `review` — using these makes the built-in state mappings work. You can include arbitrary ids and call `setState('walking')` directly via the default adapter's pass-through behavior.
+
+When both `atlas` and `useCodexAtlas` are set, `atlas` wins.
 
 ---
 
