@@ -1,0 +1,32 @@
+{
+  "name": "agent-pet",
+  "version": "0.1.0",
+  "description": "Animated companion pet widget with state-driven atlas animations. Ported from nexu-io/open-design (Apache-2.0).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/agent-pet.es.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./css": "./dist/pet.css"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "vite build && vite build --mode widget",
+    "build:es": "vite build",
+    "build:widget": "vite build --mode widget",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "preact": "^10.25.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.3.5",
+    "@vitejs/plugin-react": "^4.4.1",
+    "vite-plugin-css-injected-by-js": "^3.5.2"
+  }
+}
