@@ -125,18 +125,21 @@ Vendor multiple at once: `pnpm vendor-pet homelander guga totoro`.
 
 ### 3. npm package (offline / SDK use)
 
-Install once from npm — no CDN needed at runtime, works fully offline.
+Install once from npm. Works fully offline — no CDN, no manual file copying.
 
 ```bash
 pnpm add agent-pet
 ```
 
-The package ships **two things in `dist/`**:
+The package exposes three subpath entries; pick the one that fits your app:
 
-- `agent-pet.js` — ES module with React components + types + helpers (for React apps)
-- `agent-pet-widget.iife.js` — the same widget bundle used by the CDN, fully self-contained
+| Subpath | Use case | React peer dep? |
+|---|---|---|
+| `agent-pet` | React apps — import the React components | **Yes** (React 18+) |
+| `agent-pet/widget` | Svelte / Vue / Solid / Angular / vanilla — self-contained ES module factory, Preact bundled internally | No |
+| `agent-pet/iife` | Direct path to the IIFE bundle if you want a script-tag dist | No |
 
-**React apps** — import the components directly:
+#### React apps — `agent-pet`
 
 ```tsx
 import { PetProvider, PetOverlay } from 'agent-pet';
@@ -151,70 +154,82 @@ function App({ appState }) {
 }
 ```
 
-**Other frameworks (Svelte / Vue / Solid / Angular / vanilla)** — vendor the IIFE from `node_modules` to your static assets, then drive it via `getAgentPet()` for full type safety:
+#### Any other framework — `agent-pet/widget`
 
-```bash
-# Copy the IIFE to your public/static dir at build time. Most frameworks
-# have a copy/symlink convention — examples below.
-cp node_modules/agent-pet/dist/agent-pet-widget.iife.js public/
-```
-
-```html
-<!-- index.html -->
-<script src="/agent-pet-widget.iife.js" data-codex-pet="homelander"></script>
-```
+A self-contained ES module that exports `createAgentPetAPI()`. Bundles Preact internally (~16 KB gzip), no React peer dep. Your bundler (Vite/webpack/Rollup) tree-shakes and inlines it like any other dep — no manual copy step.
 
 ```ts
-// component.ts (any framework)
-import { getAgentPet, type WidgetState } from 'agent-pet';
+import { createAgentPetAPI } from 'agent-pet/widget';
 
-const pet = getAgentPet();   // typed AgentPetAPI, throws if script tag missing
+const pet = createAgentPetAPI();
+pet.mount({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });
 pet.setState('thinking');
-pet.play('greeting');
 ```
 
-#### Framework-specific snippets
+##### Framework-specific snippets
 
 **Svelte 5:**
 ```svelte
 <script lang="ts">
-  import { getAgentPet, type WidgetState } from 'agent-pet';
+  import { onMount, onDestroy } from 'svelte';
+  import { createAgentPetAPI, type AgentPetAPI } from 'agent-pet/widget';
+
+  let pet: AgentPetAPI;
   let working = $state(false);
-  $effect(() => getAgentPet().setState(working ? 'thinking' : 'idle'));
+
+  onMount(() => {
+    pet = createAgentPetAPI();
+    pet.mount({ name: 'Buddy' });
+  });
+  onDestroy(() => pet?.unmount());
+  $effect(() => pet?.setState(working ? 'thinking' : 'idle'));
 </script>
 ```
 
 **Vue 3:**
 ```ts
-import { ref, watch } from 'vue';
-import { getAgentPet } from 'agent-pet';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { createAgentPetAPI, type AgentPetAPI } from 'agent-pet/widget';
 
+const pet = ref<AgentPetAPI>();
 const working = ref(false);
-watch(working, v => getAgentPet().setState(v ? 'thinking' : 'idle'), { immediate: true });
+
+onMounted(() => { pet.value = createAgentPetAPI(); pet.value.mount({ name: 'Buddy' }); });
+onUnmounted(() => pet.value?.unmount());
+watch(working, v => pet.value?.setState(v ? 'thinking' : 'idle'));
 ```
 
 **Solid:**
 ```tsx
-import { createSignal, createEffect } from 'solid-js';
-import { getAgentPet } from 'agent-pet';
+import { createSignal, createEffect, onCleanup } from 'solid-js';
+import { createAgentPetAPI } from 'agent-pet/widget';
+
+const pet = createAgentPetAPI();
+pet.mount({ name: 'Buddy' });
+onCleanup(() => pet.unmount());
 
 const [working, setWorking] = createSignal(false);
-createEffect(() => getAgentPet().setState(working() ? 'thinking' : 'idle'));
+createEffect(() => pet.setState(working() ? 'thinking' : 'idle'));
 ```
 
 **Angular:**
 ```ts
-import { Component, effect, signal } from '@angular/core';
-import { getAgentPet } from 'agent-pet';
+import { Component, OnDestroy, effect, signal } from '@angular/core';
+import { createAgentPetAPI, type AgentPetAPI } from 'agent-pet/widget';
 
-@Component({ ... })
-export class App {
+@Component({ /* ... */ })
+export class App implements OnDestroy {
+  pet: AgentPetAPI = createAgentPetAPI();
   working = signal(false);
-  constructor() { effect(() => getAgentPet().setState(this.working() ? 'thinking' : 'idle')); }
+  constructor() {
+    this.pet.mount({ name: 'Buddy' });
+    effect(() => this.pet.setState(this.working() ? 'thinking' : 'idle'));
+  }
+  ngOnDestroy() { this.pet.unmount(); }
 }
 ```
 
-`getAgentPet()` throws a clear error if the script tag hasn't loaded — use `isAgentPetReady()` for non-throwing checks. React 18+ is a **peer dependency** for the React subset; non-React consumers don't need it (the IIFE bundles its own Preact runtime).
+The `agent-pet/widget` entry is one ES module — your bundler treats it like any other npm dep. No script tags, no `window.AgentPet` global, no manual file copying. SSR-safe (the API gates DOM access internally).
 
 ---
 

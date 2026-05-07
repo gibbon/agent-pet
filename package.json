@@ -32,6 +32,11 @@
       "import": "./dist/agent-pet.js",
       "types": "./dist/index.d.ts"
     },
+    "./widget": {
+      "import": "./dist/agent-pet-widget.es.js",
+      "types": "./dist/widget/widget-es.d.ts"
+    },
+    "./iife": "./dist/agent-pet-widget.iife.js",
     "./css": "./dist/pet.css"
   },
   "files": [
@@ -40,10 +45,11 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "vite build && vite build --mode widget && node scripts/sri.mjs",
+    "build": "vite build && vite build --mode widget && vite build --mode widget-esm && node scripts/sri.mjs",
     "build:pages": "pnpm build && node scripts/build-pages.mjs",
     "build:es": "vite build",
     "build:widget": "vite build --mode widget",
+    "build:widget-esm": "vite build --mode widget-esm",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "vendor-pet": "node scripts/vendor-pet.mjs",
