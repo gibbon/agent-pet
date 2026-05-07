@@ -55,14 +55,36 @@ AgentPet.configure({ name: 'Rex', glyph: '🦖' });</code></pre>
   </p>
 
   <script>
-    async function loadHatchery(id, name) {
+    let hatcheryCache = null;
+    async function getHatchery() {
+      if (hatcheryCache) return hatcheryCache;
       const r = await fetch('https://j20.nz/hatchery/api/pets.json');
       const d = await r.json();
-      const pet = (d.pets ?? []).find(p => (p.petManifestId ?? p.id) === id);
+      hatcheryCache = d.pets ?? [];
+      return hatcheryCache;
+    }
+    async function loadHatchery(id, name) {
+      const pets = await getHatchery();
+      const pet = pets.find(p => (p.petManifestId ?? p.id) === id);
       if (!pet) return alert('not found');
       AgentPet.configure({ name, imageUrl: pet.spritesheetUrl, useCodexAtlas: true, accent: '#7eb8da' });
     }
+    // First-visit default: pick an animated hatchery pet so visitors see what
+    // the widget actually does. Returning visitors keep whatever they chose.
+    window.addEventListener('DOMContentLoaded', async () => {
+      if (localStorage.getItem('agent-pet:config')) return;
+      try {
+        const pets = await getHatchery();
+        const pick = pets.find(p => (p.petManifestId ?? p.id) === 'mini-sama') ?? pets[0];
+        if (pick) AgentPet.configure({
+          name: 'Buddy',
+          imageUrl: pick.spritesheetUrl,
+          useCodexAtlas: true,
+          accent: '#7eb8da',
+        });
+      } catch { /* offline — fall back to glyph default */ }
+    });
   </script>
-  <script src="./agent-pet-widget.iife.js" data-name="Demo" data-glyph="🦄" data-accent="#4ade80"></script>
+  <script src="./agent-pet-widget.iife.js" data-name="Buddy" data-accent="#7eb8da"></script>
 </body>
 </html>

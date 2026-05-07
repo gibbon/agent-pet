@@ -201,9 +201,9 @@ export function PetOverlay({ onOpenSettings, onDismissSpeech, size = 96, storage
     cursor: 'grab',
     userSelect: 'none',
     borderRadius: '50%',
-    // @ts-expect-error CSS custom property
-    '--pet-anim': active.atlas ? 'none' : `ap-${active.animation}`,
-    animation: active.atlas ? 'none' : `var(--pet-anim, ap-float) 3s ease-in-out infinite`,
+    // Direct keyframe reference — `var()` for animation-name has uneven
+    // support inside shadow DOM, so resolve the keyframe name eagerly.
+    animation: active.atlas ? 'none' : `ap-${active.animation} 3s ease-in-out infinite`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

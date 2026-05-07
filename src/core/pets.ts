@@ -17,7 +17,7 @@ export const DEFAULT_PET_CONFIG: PetConfig = {
 };
 
 export function defaultCustomPet(): PetCustom {
-  return { name: 'Buddy', glyph: '🦄', accent: '#c96442', greeting: 'Hi! I am here whenever you need me.' };
+  return { name: 'Buddy', glyph: '🐶', accent: '#7eb8da', greeting: 'Hi! I am here whenever you need me.' };
 }
 
 export function resolveActivePet(pet: PetConfig | undefined): ResolvedPet | null {
