@@ -24,7 +24,7 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });
 The fastest path — pick a pet from [codex-pets.net](https://codex-pets.net/) and reference it by id:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
@@ -42,7 +42,7 @@ Open a blank [CodePen](https://codepen.io/pen/), [JSFiddle](https://jsfiddle.net
   <button onclick="AgentPet.setState('building')">building</button>
   <button onclick="AgentPet.setState('success')">success</button>
   <button onclick="AgentPet.say('hello!', {ttl:4000})">say hello</button>
-  <script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
+  <script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
           data-codex-pet="homelander"></script>
 </body>
 </html>
@@ -60,7 +60,7 @@ There's also a hosted [**playground page**](https://agent-pet.pages.dev/playgrou
 - **Draggable + persistent** — position and pet selection persist via `localStorage`.
 - **9 distinct animations** — drives all rows of the Codex atlas spec (idle, thinking, building, delegating, leaving, greeting, waiting, success, error).
 - **Speech bubbles** — `AgentPet.say(text, { link })` for inline status with optional click-through.
-- **Versioned URLs** — pin to `/v0.3/` for stability; immutable + 1-year cache.
+- **Versioned URLs** — pin to `/v0.4/` for stability; immutable + 1-year cache.
 - **SRI-pinnable** — SHA-384 hashes published per release.
 - **Versatile mounting** — auto-mount or programmatic; mount into any element via `target`.
 
@@ -73,21 +73,21 @@ There's also a hosted [**playground page**](https://agent-pet.pages.dev/playgrou
 **Minimal — emoji glyph, zero config:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
         data-name="Rex" data-glyph="🦖" data-accent="#e74c3c"></script>
 ```
 
 **Animated pet from codex-pets.net by id:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
 **Your own Codex-format spritesheet:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
         data-image-url="https://your-cdn.example/your-sprite.webp"
         data-use-codex-atlas></script>
 ```
@@ -99,7 +99,7 @@ We don't bake a default spritesheet into the bundle — they're 80–150 KB each
 The bundle is plain static JS — download it, serve it from your own host:
 
 ```bash
-curl -O https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js
+curl -O https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js
 ```
 
 Serve via your CDN, nginx, S3, GitHub Pages — anywhere. Then:
@@ -246,6 +246,7 @@ The `agent-pet/widget` entry is one ES module — your bundler treats it like an
 | `data-use-codex-atlas` | flag | – | Apply standard 8×9 Codex atlas layout |
 | `data-storage-key` | string | `"agent-pet:config"` | localStorage key (multi-instance) |
 | `data-auto-mount` | `"false"` | auto-mount | Set `"false"` to mount programmatically |
+| `data-observe` | keywords | – | Opt into page event observers (`forms`, `nav`, `all`) |
 
 Bare attributes like `data-use-codex-atlas` (no value) read as truthy.
 
@@ -256,11 +257,17 @@ AgentPet.setState(state)             // persistent mood — pet stays in this st
 AgentPet.play(action, opts?)         // one-shot action — auto-reverts to setState
 AgentPet.say(text, opts?)            // open speech bubble; opts: { ttl?, link? }
 AgentPet.configure(opts)             // change name/glyph/accent/imageUrl/atlas
+AgentPet.observe(opts)               // wire DOM events (form submit, nav, etc.) to states
 AgentPet.mount(opts?)                // mount into DOM (auto-called unless data-auto-mount="false")
 AgentPet.unmount()                   // remove from DOM
 AgentPet.on('stateChange', handler)
 AgentPet.off('stateChange', handler)
 AgentPet.mounted                     // boolean — currently in the DOM?
+
+// Multi-pet registry (window.AgentPet only)
+AgentPet.create(id, opts?)           // create + mount a named pet
+AgentPet.get(id) / has(id) / list()  // lookup
+AgentPet.remove(id)                  // unmount + forget
 ```
 
 ### `setState` vs `play`
@@ -328,6 +335,40 @@ AgentPet.mount({
 
 Calling `mount()` twice is idempotent — it unmounts the previous instance first.
 
+### Page event observers (opt-in)
+
+Wire the widget to common page events so it reacts automatically — no JS glue:
+
+```js
+AgentPet.observe({
+  formSubmit:   'thinking',   // any <form> submit fires the event
+  formError:    'error',      // HTML5 invalid event on a field
+  pageLoad:     'greeting',   // once on initial load
+  pageLeave:    'leaving',    // beforeunload
+  externalLink: 'leaving',    // cross-origin or target="_blank" link click
+});
+```
+
+Pass `false` to disable an individual observer; pass `{}` to remove all observers.
+
+Or via the script tag:
+
+```html
+<script src=".../agent-pet-widget.iife.js"
+        data-codex-pet="homelander"
+        data-observe="forms,nav"></script>
+```
+
+`data-observe` keywords:
+- `forms` — formSubmit + formError
+- `nav` — pageLoad + pageLeave + externalLink
+- `all` — every observer
+- Individual: `form-submit`, `form-error`, `page-load`, `page-leave`, `external-link`
+
+Default off. Observers don't watch input field contents — only events that fire when the user actively does something (submit, click, navigate). No analytics, no scroll-tracking, no field-keystroke logging.
+
+See [`examples/observe.html`](examples/observe.html) for a working demo.
+
 ### Multiple pets on one page
 
 `window.AgentPet` is a registry — `setState`/`say`/`configure`/etc operate on a default `'main'` pet, and you can spawn additional named pets with `create(id, opts)`:
@@ -380,7 +421,7 @@ The CDN ships the bundle at multiple paths so old pins keep working forever:
 | Path | Cache | Stability |
 |---|---|---|
 | `/agent-pet-widget.iife.js` | 5 minutes | "Latest" — may break on new releases |
-| `/v0.3/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.3, never breaks |
+| `/v0.4/agent-pet-widget.iife.js` | 1 year, immutable | Pinned to v0.3, never breaks |
 | `/v0.2/agent-pet-widget.iife.js` | 1 year, immutable | Vanilla DOM, no multi-pet API |
 | `/v0.1/agent-pet-widget.iife.js` | 1 year, immutable | Original Preact-bundled build |
 
@@ -402,12 +443,12 @@ curl -s https://agent-pet.pages.dev/version.json
 Pin the bundle to a hash so browsers reject substituted code if the CDN is compromised:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.3/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.4/agent-pet-widget.iife.js"
         integrity="sha384-..."
         crossorigin="anonymous"></script>
 ```
 
-Each release publishes hashes at `/v0.3/SRI.json`:
+Each release publishes hashes at `/v0.4/SRI.json`:
 
 ```json
 {

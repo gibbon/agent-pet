@@ -20,5 +20,6 @@ export type {
   MountOptions,
   PlayOptions,
   SayOptions,
+  ObserveOptions,
 } from './widget/api';
 export { getAgentPet, isAgentPetReady } from './shared/global';

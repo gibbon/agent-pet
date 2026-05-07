@@ -49,6 +49,19 @@ export interface MountOptions extends ConfigureOptions {
   target?: HTMLElement;
 }
 
+export interface ObserveOptions {
+  /** Pet state to play when any <form> on the page is submitted. */
+  formSubmit?: WidgetState | false;
+  /** Pet state to play when a form field's `invalid` event fires (HTML5 validation). */
+  formError?: WidgetState | false;
+  /** Pet state to play once on initial DOMContentLoaded. */
+  pageLoad?: WidgetState | false;
+  /** Pet state to set just before the page unloads. */
+  pageLeave?: WidgetState | false;
+  /** Pet state to play when the user clicks a cross-origin link or target="_blank". */
+  externalLink?: WidgetState | false;
+}
+
 export interface AgentPetAPI {
   setState(state: WidgetState): void;
   /** Play a one-shot action, then return to the previous persistent state.
@@ -57,6 +70,10 @@ export interface AgentPetAPI {
   play(action: WidgetState, opts?: PlayOptions): void;
   say(text: string, opts?: SayOptions): void;
   configure(opts: ConfigureOptions): void;
+  /** Wire DOM events (form submit, page load, external links, etc.) to pet
+   *  state changes. Replaces any previous observe() call — pass {} to disable
+   *  all observers, or omit individual fields to disable just those. */
+  observe(opts: ObserveOptions): void;
   on(event: WidgetEventName, handler: (...args: unknown[]) => void): void;
   off(event: WidgetEventName, handler: (...args: unknown[]) => void): void;
   /** Mount programmatically. Idempotent — calling twice unmounts the previous instance first. */

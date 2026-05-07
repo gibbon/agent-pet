@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.4.0 — Page event observers
+
+Opt-in DOM event listeners that wire common page activity to pet state changes — no host JavaScript required.
+
+**New API:**
+- `AgentPet.observe({ formSubmit, formError, pageLoad, pageLeave, externalLink })`
+- Each observer accepts a `WidgetState` (e.g. `'thinking'`, `'success'`) or `false` to disable.
+- Pass `{}` to clear all observers.
+
+**Script-tag shorthand:**
+```html
+<script src="..." data-observe="forms,nav"></script>
+```
+
+Keywords: `forms`, `nav`, `all`, plus individual observer names (`form-submit`, `page-load`, etc.).
+
+**Privacy stance:** observers only fire on events the user actively triggers (submit, click, navigate). No keystroke logging, scroll tracking, or analytics-style observation.
+
+CDN: `/v0.4/agent-pet-widget.iife.js`. Old paths immutable.
+
 ## v0.3.0 — Multi-pet by id
 
 Added a registry layer to `window.AgentPet` for managing multiple named pets on one page. Backward compatible — singleton methods (`setState`, `say`, `configure`, etc.) keep working and forward to a default `'main'` pet.

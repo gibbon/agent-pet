@@ -1,8 +1,10 @@
 import { createRegistry } from './registry';
+import { parseObserveAttr, type ObserveOptions } from './observer';
 import type { ConfigureOptions } from './api';
 
 interface ScriptConfig extends ConfigureOptions {
   autoMount: boolean;
+  observe?: ObserveOptions;
 }
 
 // codex-pets.net storage path — `data-codex-pet="<id>"` resolves to
@@ -22,6 +24,8 @@ function readScriptConfig(): ScriptConfig {
   const explicitImageUrl = script.dataset.imageUrl;
   const explicitUseAtlas = 'useCodexAtlas' in script.dataset && script.dataset.useCodexAtlas !== 'false';
 
+  const observe = parseObserveAttr(script.dataset.observe);
+
   return {
     name: script.dataset.name ?? codexPetId,
     glyph: script.dataset.glyph,
@@ -30,6 +34,7 @@ function readScriptConfig(): ScriptConfig {
     storageKey: script.dataset.storageKey,
     useCodexAtlas: explicitUseAtlas || Boolean(codexPetId),
     autoMount: script.dataset.autoMount !== 'false',
+    observe: Object.keys(observe).length > 0 ? observe : undefined,
   };
 }
 
@@ -43,8 +48,9 @@ function boot(): void {
 
   const config = readScriptConfig();
   if (config.autoMount) {
-    const { autoMount: _omit, ...mountOpts } = config;
+    const { autoMount: _omit, observe, ...mountOpts } = config;
     registry.mount(mountOpts);
+    if (observe) registry.observe(observe);
   }
 }
 

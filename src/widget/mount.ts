@@ -6,9 +6,10 @@ import { CODEX_ATLAS_LAYOUT, CODEX_ATLAS_ROWS_DEF } from '../core/atlas';
 import { defaultPetAdapter } from '../core/adapters/default';
 import { DEFAULT_PET_CONFIG, defaultCustomPet, preferredRowId } from '../core/pets';
 import type { PetConfig } from '../core/types';
-import type { AgentPetAPI, ConfigureOptions, MountOptions, PlayOptions, SayOptions, WidgetEventName, WidgetState } from './api';
+import type { AgentPetAPI, ConfigureOptions, MountOptions, ObserveOptions, PlayOptions, SayOptions, WidgetEventName, WidgetState } from './api';
 import { PetOverlayElement } from './overlay';
 import { SpeechQueue } from './queue';
+import { attachObservers } from './observer';
 
 // pet.css contents inlined at build time. Shadow DOM doesn't inherit
 // document.head styles, so we manually inject this <style> into each
@@ -40,6 +41,7 @@ export function createAgentPetAPI(): AgentPetAPI {
   let storageKey = 'agent-pet:config';
   let positionKey = 'agent-pet:position';
   let configChangedHandler: (() => void) | null = null;
+  let detachObservers: (() => void) | null = null;
 
   // Per-instance state
   let hostState: WidgetState = 'idle';
@@ -119,6 +121,7 @@ export function createAgentPetAPI(): AgentPetAPI {
       window.removeEventListener(CONFIG_CHANGED_EVENT, configChangedHandler);
       configChangedHandler = null;
     }
+    if (detachObservers) { detachObservers(); detachObservers = null; }
     if (playRevertTimer) { clearTimeout(playRevertTimer); playRevertTimer = null; }
     overlay?.destroy();
     overlay = null;
@@ -170,6 +173,10 @@ export function createAgentPetAPI(): AgentPetAPI {
         }
         window.dispatchEvent(new CustomEvent(CONFIG_CHANGED_EVENT));
       } catch { /* localStorage unavailable */ }
+    },
+    observe(opts: ObserveOptions) {
+      if (detachObservers) { detachObservers(); detachObservers = null; }
+      detachObservers = attachObservers(api, opts);
     },
     on(event, handler) {
       if (!listeners.has(event)) listeners.set(event, new Set());

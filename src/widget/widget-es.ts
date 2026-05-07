@@ -10,6 +10,7 @@
 
 export { createAgentPetAPI } from './mount';
 export { createRegistry } from './registry';
+export { attachObservers, parseObserveAttr, OBSERVE_DEFAULTS } from './observer';
 export type {
   AgentPetAPI,
   AgentPetRegistry,
@@ -19,6 +20,7 @@ export type {
   MountOptions,
   PlayOptions,
   SayOptions,
+  ObserveOptions,
   PetAtlasLayout,
   PetAtlasRowDef,
 } from './api';

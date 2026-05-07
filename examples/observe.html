@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>agent-pet — observe demo</title>
+  <style>
+    body { background: #111; color: #eee; font-family: monospace; padding: 2rem; max-width: 720px; }
+    form, .card { background: #1c1c1c; border: 1px solid #2a2a2a; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+    label { display: block; margin: 0.5rem 0 0.2rem; font-size: 0.85rem; opacity: 0.8; }
+    input, button { font: inherit; padding: 0.4rem 0.6rem; background: #2a2a2a; color: #eee; border: 1px solid #444; }
+    button { cursor: pointer; }
+    a { color: #7eb8da; }
+  </style>
+</head>
+<body>
+  <h1>Page event observer</h1>
+  <p>The script tag below opts into <code>data-observe="forms,nav"</code>. The pet reacts automatically — no JS glue.</p>
+
+  <form>
+    <h3>Form submit → pet plays 'thinking'</h3>
+    <label>Email <input type="email" required></label>
+    <label>Password <input type="password" required minlength="6"></label>
+    <button type="submit">Submit</button>
+    <button type="reset">Reset</button>
+  </form>
+
+  <div class="card">
+    <h3>Form invalid → pet plays 'error'</h3>
+    <p>Submit the form above with an empty or invalid email — the <code>invalid</code> event fires before submit.</p>
+  </div>
+
+  <div class="card">
+    <h3>External link click → pet plays 'leaving'</h3>
+    <p>
+      <a href="https://github.com/gibbon/agent-pet" target="_blank">github.com/gibbon/agent-pet</a>
+      (new tab — note the pet wave goodbye briefly)
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Page load → pet played 'greeting' on first arrival</h3>
+    <p>Reload the page to see it again.</p>
+  </div>
+
+  <script src="../dist/agent-pet-widget.iife.js"
+          data-codex-pet="homelander"
+          data-observe="forms,nav"></script>
+</body>
+</html>
