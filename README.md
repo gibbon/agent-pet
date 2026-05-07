@@ -29,6 +29,28 @@ The fastest path — pick a pet from [codex-pets.net](https://codex-pets.net/) a
 
 The script resolves the spritesheet URL automatically and applies the standard 8×9 Codex atlas layout. Try `homelander`, `guga`, `furina`, `patamon`, `clippy`, `totoro` — the slug after `/pets/` in any codex-pets.net URL works as the id.
 
+### Try it in a sandbox
+
+Open a blank [CodePen](https://codepen.io/pen/), [JSFiddle](https://jsfiddle.net/), or [JS Bin](https://jsbin.com/), and paste this into the HTML pane:
+
+```html
+<!DOCTYPE html>
+<html>
+<body style="background:#111;color:#eee;font-family:monospace;padding:2rem;">
+  <button onclick="AgentPet.setState('thinking')">thinking</button>
+  <button onclick="AgentPet.setState('building')">building</button>
+  <button onclick="AgentPet.setState('success')">success</button>
+  <button onclick="AgentPet.say('hello!', {ttl:4000})">say hello</button>
+  <script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+          data-codex-pet="homelander"></script>
+</body>
+</html>
+```
+
+Save / Run — the pet appears bottom-right and reacts to the buttons. Or save it as `try.html` locally, double-click to open in a browser; no server needed.
+
+There's also a hosted [**playground page**](https://agent-pet.pages.dev/playground.html) — the same minimal example, hosted live. Right-click → "View Source" to copy the working HTML into your editor.
+
 ## Features
 
 - **Zero backend** — pure static JS. The widget makes no network calls beyond the one you point it at.
@@ -323,6 +345,17 @@ Connect a fork to Cloudflare Pages with:
 - **NODE_VERSION env var:** `20`
 
 Or any static host — Netlify, GitHub Pages, S3 + CloudFront, your own nginx.
+
+## Related projects
+
+The Codex Pets ecosystem is small but growing — a few neighbours worth knowing:
+
+- **[codex-pets.net](https://codex-pets.net/)** — the public catalog of community-uploaded Codex pets, plus a "Petshare" API for browsing and downloading them. The `data-codex-pet="<id>"` attribute in this widget pulls directly from their storage.
+- **[j20.nz/hatchery/](https://j20.nz/hatchery/)** — an earlier catalog of Codex-format pets. Pre-dates codex-pets.net; both follow the same atlas spec.
+- **[openai/skills/.../hatch-pet](https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet)** — the official OpenAI Codex skill that *generates* a new pet (image + atlas) from a text prompt, on demand. Pair this with agent-pet to bring AI-generated companions onto your site.
+- **[FroeMic/codex-pets-web](https://github.com/FroeMic/codex-pets-web)** — a sibling library (MIT, 2026-05-06) targeting the same Codex pet format. Different shape: ships as multiple npm packages with first-class wrappers for React, Vue, Svelte, Solid, and Angular. If you want tight framework integration over a one-line script tag, look there.
+- **[nexu-io/open-design](https://github.com/nexu-io/open-design)** — Apache-2.0. The reference UI implementation that agent-pet's animations and atlas helpers are ported from.
+- **[stevenjoezhang/live2d-widget](https://github.com/stevenjoezhang/live2d-widget)** — different format (Live2D parametric models, not sprite atlas) but the dominant "anime mascot on your website" widget. ~10k stars. Worth knowing if Live2D is what you actually want.
 
 ## Contributing
 
