@@ -1,4 +1,4 @@
-import { createAgentPetAPI } from './mount';
+import { createRegistry } from './registry';
 import type { ConfigureOptions } from './api';
 
 interface ScriptConfig extends ConfigureOptions {
@@ -38,13 +38,13 @@ function boot(): void {
   const win = window as unknown as Record<string, unknown>;
   if (win.AgentPet) return;
 
-  const api = createAgentPetAPI();
-  win.AgentPet = api;
+  const registry = createRegistry();
+  win.AgentPet = registry;
 
   const config = readScriptConfig();
   if (config.autoMount) {
     const { autoMount: _omit, ...mountOpts } = config;
-    api.mount(mountOpts);
+    registry.mount(mountOpts);
   }
 }
 

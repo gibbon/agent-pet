@@ -327,6 +327,36 @@ AgentPet.mount({
 
 Calling `mount()` twice is idempotent — it unmounts the previous instance first.
 
+### Multiple pets on one page
+
+`window.AgentPet` is a registry — `setState`/`say`/`configure`/etc operate on a default `'main'` pet, and you can spawn additional named pets with `create(id, opts)`:
+
+```js
+// One pet for the chat sidebar, another for the build status bar
+AgentPet.create('chat',  { name: 'Chat',  imageUrl: '...', useCodexAtlas: true });
+AgentPet.create('build', { name: 'Build', imageUrl: '...', useCodexAtlas: true });
+
+AgentPet.get('chat').setState('thinking');
+AgentPet.get('build').setState('building');
+
+AgentPet.say('hi from main pet');     // default pet still works
+AgentPet.list();                      // ['main', 'chat', 'build']
+AgentPet.remove('build');             // unmount + forget
+```
+
+Each pet has its own `localStorage` entry (default key: `agent-pet:config:<id>`) and remembers its own dragged position. Override per-pet with `storageKey`:
+
+```js
+AgentPet.create('chat', {
+  imageUrl: 'https://...spritesheet.webp',
+  useCodexAtlas: true,
+  storageKey: 'my-app:chat-pet',  // custom localStorage key
+  target: document.getElementById('sidebar'),  // optional mount point
+});
+```
+
+`AgentPet.has(id)` and `AgentPet.list()` for introspection. Backward-compatible — single-pet code keeps working unchanged because the singleton methods forward to `'main'`.
+
 ### Programmatic mount
 
 By default the script auto-boots on `DOMContentLoaded`. Disable to take full control:

@@ -9,8 +9,10 @@
 //   pet.setState('thinking');
 
 export { createAgentPetAPI } from './mount';
+export { createRegistry } from './registry';
 export type {
   AgentPetAPI,
+  AgentPetRegistry,
   WidgetState,
   WidgetEventName,
   ConfigureOptions,

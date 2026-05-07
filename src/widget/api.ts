@@ -64,3 +64,25 @@ export interface AgentPetAPI {
   unmount(): void;
   readonly mounted: boolean;
 }
+
+/**
+ * Registry-style API attached to `window.AgentPet`. Behaves like a single
+ * AgentPetAPI for backward compatibility (setState, play, say, etc. operate
+ * on a default 'main' pet), but adds methods for managing multiple named
+ * pets on one page.
+ */
+export interface AgentPetRegistry extends AgentPetAPI {
+  /** Create a new pet with the given id, mount it, and return its API.
+   *  Each pet has its own storageKey (defaults to `agent-pet:config:<id>`)
+   *  and position memory. Calling create() with an existing id returns the
+   *  existing pet without remounting. */
+  create(id: string, opts?: MountOptions): AgentPetAPI;
+  /** Look up a registered pet by id, or undefined if not found. */
+  get(id: string): AgentPetAPI | undefined;
+  /** Whether a pet with the given id exists in the registry. */
+  has(id: string): boolean;
+  /** All registered pet ids. The default pet is 'main'. */
+  list(): string[];
+  /** Unmount and forget a pet. */
+  remove(id: string): void;
+}

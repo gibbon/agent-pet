@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>agent-pet — multi-pet</title>
+  <style>
+    body { background: #111; color: #eee; font-family: monospace; padding: 2rem; }
+    button { margin: 0.25rem; padding: 0.4rem 0.8rem; background: #2a2a2a; color: #eee; border: 1px solid #444; cursor: pointer; }
+    .group { margin: 1rem 0; padding: 0.75rem; background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 4px; }
+    .group h3 { margin: 0 0 0.5rem; color: #7eb8da; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <h1>Multi-pet on one page</h1>
+  <p>Three independent pets, each with its own state, position, and persistence (separate localStorage entries).</p>
+
+  <div class="group">
+    <h3>Chat pet</h3>
+    <button onclick="AgentPet.get('chat').setState('thinking')">thinking</button>
+    <button onclick="AgentPet.get('chat').setState('success')">success</button>
+    <button onclick="AgentPet.get('chat').setState('idle')">idle</button>
+    <button onclick="AgentPet.get('chat').say('Hi from chat!', {ttl: 4000})">say</button>
+  </div>
+
+  <div class="group">
+    <h3>Build pet</h3>
+    <button onclick="AgentPet.get('build').setState('building')">building</button>
+    <button onclick="AgentPet.get('build').setState('error')">error</button>
+    <button onclick="AgentPet.get('build').setState('idle')">idle</button>
+    <button onclick="AgentPet.get('build').say('Build done', {ttl: 4000})">say</button>
+  </div>
+
+  <div class="group">
+    <h3>Default ('main') pet</h3>
+    <button onclick="AgentPet.setState('thinking')">thinking</button>
+    <button onclick="AgentPet.setState('greeting')">greeting</button>
+    <button onclick="AgentPet.setState('idle')">idle</button>
+    <button onclick="AgentPet.say('Hello from main', {ttl: 4000})">say</button>
+  </div>
+
+  <div class="group">
+    <h3>Registry</h3>
+    <button onclick="updateList()">list pets</button>
+    <button onclick="AgentPet.remove('build'); updateList()">remove build pet</button>
+    <button onclick="boot('build', 'patamon', '#f59e0b'); updateList()">re-create build pet</button>
+    <p>Registered pet ids: <span id="list">—</span></p>
+  </div>
+
+  <p>Each pet has its own draggable position bottom-right (drag them apart!).</p>
+
+  <!-- The IIFE creates a 'main' pet automatically when AgentPet methods are called -->
+  <script src="../dist/agent-pet-widget.iife.js"></script>
+  <script>
+    function boot(id, codexPetId, accent) {
+      AgentPet.create(id, {
+        name: id.charAt(0).toUpperCase() + id.slice(1),
+        imageUrl: `https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/${codexPetId}/spritesheet.webp`,
+        useCodexAtlas: true,
+        accent,
+      });
+    }
+    function updateList() {
+      document.getElementById('list').textContent = AgentPet.list().join(', ') || '—';
+    }
+    boot('chat', 'guga', '#7eb8da');
+    boot('build', 'patamon', '#f59e0b');
+    AgentPet.configure({ name: 'Main', imageUrl: 'https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/homelander/spritesheet.webp', useCodexAtlas: true });
+    AgentPet.mount();
+    updateList();
+  </script>
+</body>
+</html>
