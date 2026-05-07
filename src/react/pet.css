@@ -1,0 +1,58 @@
+/* agent-pet — animations and structural styles
+ * Ported from nexu-io/open-design (Apache-2.0)
+ * https://github.com/nexu-io/open-design
+ */
+
+@keyframes ap-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ap-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes ap-bounce {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  40%       { transform: translateY(-12px) scaleY(1.05); }
+  60%       { transform: translateY(-10px) scaleY(1); }
+}
+
+@keyframes ap-sway {
+  0%, 100% { transform: rotate(-4deg); }
+  50%       { transform: rotate(4deg); }
+}
+
+@keyframes ap-wiggle {
+  0%, 100% { transform: rotate(-6deg) scale(1); }
+  25%       { transform: rotate(6deg) scale(1.05); }
+  75%       { transform: rotate(-3deg) scale(0.97); }
+}
+
+@keyframes ap-frames {
+  from { background-position-x: 0%; }
+  to   { background-position-x: 100%; }
+}
+
+/* Overlay anchor — fixed position set inline via React */
+.ap-overlay {
+  pointer-events: none;
+}
+
+.ap-overlay > * {
+  pointer-events: all;
+}
+
+/* Sprite cursor */
+.ap-sprite {
+  cursor: grab;
+}
+.ap-sprite:active {
+  cursor: grabbing;
+}
+
+/* Image rendering for pixel-art spritesheets */
+.ap-image {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
