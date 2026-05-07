@@ -2,10 +2,10 @@
 
 > A tiny animated companion-pet widget for any web app. Self-hostable, no backend, ~7 KB gzip. Vanilla DOM — no React, no Preact, no framework runtime.
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Bundle size](https://img.shields.io/badge/gzip-~7_KB-success)](#)
+[![npm version](https://img.shields.io/npm/v/agent-pet?color=cb3837)](https://www.npmjs.com/package/agent-pet)
+[![License](https://img.shields.io/npm/l/agent-pet?color=blue)](LICENSE)
+[![Bundle size](https://img.shields.io/bundlephobia/minzip/agent-pet?label=gzip)](https://bundlephobia.com/package/agent-pet)
 [![Live demo](https://img.shields.io/badge/demo-agent--pet.pages.dev-7eb8da)](https://agent-pet.pages.dev)
-[![npm](https://img.shields.io/badge/npm-agent--pet-cb3837)](https://www.npmjs.com/package/agent-pet)
 
 Drop a single `<script>` tag, get a draggable animated pet bottom-right of any page. Drive it from your app:
 
@@ -604,9 +604,11 @@ npx serve . -p 5174
 ```
 
 Then open:
-- `http://localhost:5174/examples/auto-mount.html`
-- `http://localhost:5174/examples/programmatic-mount.html`
-- `http://localhost:5174/examples/self-hosted/index.html`
+- `http://localhost:5174/examples/auto-mount.html` — script tag with auto-boot
+- `http://localhost:5174/examples/programmatic-mount.html` — manual mount/unmount
+- `http://localhost:5174/examples/multi-pet.html` — multiple pets on one page
+- `http://localhost:5174/examples/observe.html` — page event observers
+- `http://localhost:5174/examples/self-hosted/index.html` — vendored bundle, no remote requests
 
 ## Deploying your own copy
 

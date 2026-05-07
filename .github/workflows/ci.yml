@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Verify widget bundle size
+        run: |
+          gzipped=$(gzip -c dist/agent-pet-widget.iife.js | wc -c)
+          echo "IIFE gzip: $gzipped bytes"
+          if [ "$gzipped" -gt 15000 ]; then
+            echo "::error::IIFE bundle exceeded 15 KB gzip — investigate before merging."
+            exit 1
+          fi
