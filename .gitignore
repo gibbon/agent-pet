@@ -9,3 +9,5 @@ public/index.d.ts
 public/core/
 public/react/
 public/widget/
+public/v*/
+public/version.json
