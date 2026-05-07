@@ -165,7 +165,13 @@ export class LocalStoragePetLibrary {
   remove(id: string): void { this.save(this.load().filter(e => e.id !== id)); }
 }
 
-const PETSHARE_BASE = 'https://ihzwckyzfcuktrljwpha.supabase.co/functions/v1/petshare';
+// codex-pets.net (formerly hosted on Supabase). The site rolled their own
+// API at /api/pets in 2026-05-08; the previous supabase host stopped
+// resolving entirely. The pets returned now embed full spritesheetUrl
+// values (https://codex-pets.net/assets/pets/<id>/spritesheet.webp), so we
+// only need a fallback path if the API ever omits one.
+const PETSHARE_API = 'https://codex-pets.net/api/pets';
+const PETSHARE_ASSETS = 'https://codex-pets.net/assets/pets';
 const HATCHERY_LIST = 'https://j20.nz/hatchery/api/pets.json';
 
 export class DefaultCatalogClient implements CatalogClient {
@@ -191,14 +197,14 @@ export class DefaultCatalogClient implements CatalogClient {
   }
 
   private async fetchPetshare(): Promise<CatalogPet[]> {
-    const resp = await fetch(`${PETSHARE_BASE}/list?page=1&pageSize=50`);
+    const resp = await fetch(`${PETSHARE_API}?count=50`);
     if (!resp.ok) return [];
     const data = await resp.json() as { pets?: Array<{ id?: string; displayName?: string; description?: string; spritesheetPath?: string; spritesheetUrl?: string }> };
     return (data.pets ?? []).map((p) => ({
       id: String(p.id ?? ''),
       displayName: String(p.displayName ?? p.id ?? ''),
       description: p.description,
-      spritesheetUrl: p.spritesheetUrl ?? `${PETSHARE_BASE}/spritesheet/${p.id}`,
+      spritesheetUrl: p.spritesheetUrl ?? `${PETSHARE_ASSETS}/${p.id}/spritesheet.webp`,
       bundled: false,
     })).filter((p) => p.id && p.spritesheetUrl);
   }

@@ -54,7 +54,7 @@
     function boot(id, codexPetId, accent) {
       AgentPet.create(id, {
         name: id.charAt(0).toUpperCase() + id.slice(1),
-        imageUrl: `https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/${codexPetId}/spritesheet.webp`,
+        imageUrl: `https://codex-pets.net/assets/pets/${codexPetId}/spritesheet.webp`,
         useCodexAtlas: true,
         accent,
       });
@@ -64,7 +64,7 @@
     }
     boot('chat', 'guga', '#7eb8da');
     boot('build', 'patamon', '#f59e0b');
-    AgentPet.configure({ name: 'Main', imageUrl: 'https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/homelander/spritesheet.webp', useCodexAtlas: true });
+    AgentPet.configure({ name: 'Main', imageUrl: 'https://codex-pets.net/assets/pets/homelander/spritesheet.webp', useCodexAtlas: true });
     AgentPet.mount();
     updateList();
   </script>

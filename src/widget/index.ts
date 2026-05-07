@@ -9,7 +9,9 @@ interface ScriptConfig extends ConfigureOptions {
 
 // codex-pets.net storage path — `data-codex-pet="<id>"` resolves to
 // `<CODEX_STORAGE>/<id>/spritesheet.webp` and auto-applies the Codex atlas.
-const CODEX_STORAGE = 'https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets';
+// Migrated 2026-05-08 from the original Supabase storage host to codex-pets.net's
+// own /assets/pets/ path; the old supabase host stopped resolving.
+const CODEX_STORAGE = 'https://codex-pets.net/assets/pets';
 
 function readScriptConfig(): ScriptConfig {
   const script =

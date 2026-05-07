@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.6.1 — Fix: codex-pets.net storage migration
+
+codex-pets.net moved their spritesheet storage and API away from Supabase to their own domain on 2026-05-08. The old supabase host stopped resolving, breaking `data-codex-pet="<id>"` and the petshare catalog fetch in every previously-shipped version of agent-pet.
+
+**Fixed paths:**
+- `data-codex-pet` resolver: `https://codex-pets.net/assets/pets/<id>/spritesheet.webp` (was `ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/<id>/spritesheet.webp`)
+- `DefaultCatalogClient` API: `https://codex-pets.net/api/pets?count=50` (was `…/petshare/list?page=1&pageSize=50`)
+- Demo landing page + multi-pet example: same migration
+
+Plus stale-metadata cleanup:
+- Description in `package.json` now says ~7 KB gzip (was ~14 — left over from before the Preact→vanilla rewrite in v0.2)
+- Keywords drop `preact`, add `vanilla-dom`
+
+If you're pinned to `/v0.1/` through `/v0.6/` on the CDN, **you'll need to bump to `/v0.6.1/`** — the older immutable bundles still try to load from the dead Supabase host.
+
 ## v0.6.0 — Complete pluggability (full i18n + icons + CSS variables)
 
 Closes the v0.5 plug-in story so deeply-integrated apps (open-design, FroeMic, future forks) can adopt agent-pet's PetSettings as their settings UI without forking.
