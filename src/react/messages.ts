@@ -1,7 +1,6 @@
 // User-facing strings used by PetSettings + PetRail. Consumers in i18n-aware
-// apps (e.g. open-design's `useT()` flow, FroeMic's framework wrappers, any
-// site that ships in multiple languages) override individual keys via the
-// `messages` prop on PetSettings / PetRail.
+// apps override individual keys via the `messages` prop. Useful in any
+// app shipping multiple languages or with its own translation pipeline.
 //
 // Keys mirror the JSX label they appear next to so they're easy to map.
 // Defaults are in English. Missing keys fall back to the English default —

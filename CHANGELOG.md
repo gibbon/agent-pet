@@ -95,7 +95,7 @@ PetSettings inline styles now flow through CSS variables with sensible dark-them
 }
 ```
 
-**Outcome:** the open-design migration cost from "agent-pet doesn't fit our app" to "we can drop in `<PetSettings messages={...} icons={...} />` plus a `composeCatalogs` adapter" — ~150 LOC of glue, vs ~1200 LOC of forked PetSettings. Real architectural win, not just a pitch.
+**Outcome:** apps with deep i18n / design-system / pet-source customisation (e.g. ones already maintaining their own complex PetSettings UI) can wrap agent-pet's PetSettings in ~150 LOC of adapter glue rather than forking the whole thing.
 
 CDN: `/v0.6/agent-pet-widget.iife.js`. Older paths immutable.
 
@@ -128,7 +128,7 @@ const merged = composeCatalogs([
 
 Pets from earlier clients win on id collision; both `fetchList()` and `sync()` aggregate across sources.
 
-**Use case:** open-design (and similar deeply-integrated apps) can now plug their daemon-discovered pets, proprietary sync, and i18n into agent-pet's PetSettings rather than maintain their own ~1000-LOC UI. Estimated migration cost from custom-built to agent-pet wrapper: ~200 LOC of adapter code.
+**Use case:** apps that already maintain their own daemon-discovered pets, proprietary sync, or i18n setup can wire those into agent-pet's PetSettings via these plug-points. ~200 LOC of adapter glue covers the typical i18n + multi-source case.
 
 CDN: `/v0.5/agent-pet-widget.iife.js`. Older paths immutable.
 

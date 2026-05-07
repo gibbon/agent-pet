@@ -676,16 +676,20 @@ The Codex Pets ecosystem is small but growing — a few neighbours worth knowing
 - **[codex-pets.net](https://codex-pets.net/)** — the public catalog of community-uploaded Codex pets, plus a "Petshare" API for browsing and downloading them. The `data-codex-pet="<id>"` attribute in this widget pulls directly from their storage.
 - **[j20.nz/hatchery/](https://j20.nz/hatchery/)** — an earlier catalog of Codex-format pets. Pre-dates codex-pets.net; both follow the same atlas spec.
 - **[openai/skills/.../hatch-pet](https://github.com/openai/skills/tree/main/skills/.curated/hatch-pet)** — the official OpenAI Codex skill that *generates* a new pet (image + atlas) from a text prompt, on demand. Pair this with agent-pet to bring AI-generated companions onto your site.
-- **[FroeMic/codex-pets-web](https://github.com/FroeMic/codex-pets-web)** — a sibling library (MIT, 2026-05-06) targeting the same Codex pet format. Different shape: ships as multiple npm packages with first-class wrappers for React, Vue, Svelte, Solid, and Angular. If you want tight framework integration over a one-line script tag, look there.
-- **[nexu-io/open-design](https://github.com/nexu-io/open-design)** — Apache-2.0. The reference UI implementation that agent-pet's animations and atlas helpers are ported from.
+- **[nexu-io/open-design](https://github.com/nexu-io/open-design)** — Apache-2.0. agent-pet is a port of their pet UI components into a CDN-deliverable widget. Most of the renderer logic, atlas helpers, and React component shells are theirs — see the file headers and LICENSE.
+- **[FroeMic/codex-pets-web](https://github.com/FroeMic/codex-pets-web)** — MIT. An independent implementation of the Codex pet format with framework-specific npm wrappers (React, Vue, Svelte, Solid, Angular). If you want a vanilla-DOM core with idiomatic per-framework primitives, look there. agent-pet's `play()` and multi-pet-by-id API patterns are partly inspired by their library — credit where due.
 - **[stevenjoezhang/live2d-widget](https://github.com/stevenjoezhang/live2d-widget)** — different format (Live2D parametric models, not sprite atlas) but the dominant "anime mascot on your website" widget. ~10k stars. Worth knowing if Live2D is what you actually want.
 
 ## Contributing
 
 Issues and pull requests welcome at [github.com/gibbon/agent-pet](https://github.com/gibbon/agent-pet). Please run `pnpm test` and `pnpm typecheck` before submitting.
 
-## License
+## License & acknowledgements
 
 [Apache-2.0](LICENSE).
 
-The animation system, atlas helpers, and React components are ported from [nexu-io/open-design](https://github.com/nexu-io/open-design) (Apache-2.0). Sample pets demonstrated in the live demo come from [codex-pets.net](https://codex-pets.net/) and [j20.nz/hatchery/](https://j20.nz/hatchery/) — the demo loads them via their public APIs and we do not redistribute their assets.
+**Code lineage** — the animation system, atlas helpers, and React component shells (`PetSpriteFace`, `PetOverlay`, `PetSettings`, `PetRail`, `pets.ts`, `codexAtlas.ts`, `image.ts`) are ports of work in **[nexu-io/open-design](https://github.com/nexu-io/open-design)** (Apache-2.0). Source-file headers and the LICENSE file note this. Without their original implementation there would be no agent-pet.
+
+**API design inspiration** — the `play(action, { loops })` one-shot pattern and the multi-pet-by-id provider/registry shape were partly informed by **[FroeMic/codex-pets-web](https://github.com/FroeMic/codex-pets-web)** (MIT). They built that ergonomics first; we adopted the patterns when they read better than what we had.
+
+**Sample pets** demonstrated on the live demo come from [codex-pets.net](https://codex-pets.net/) and [j20.nz/hatchery/](https://j20.nz/hatchery/). The demo loads them via the providers' public APIs and does not redistribute their assets — the spritesheets remain the property of their creators.
