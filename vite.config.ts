@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
         : {},
     },
     build: {
+      sourcemap: true,
       lib: {
         entry: resolve(__dirname, isWidget ? 'src/widget/index.ts' : 'src/index.ts'),
         name: 'AgentPet',

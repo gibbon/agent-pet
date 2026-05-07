@@ -9,7 +9,7 @@ export type WidgetState =
   | 'waiting'     // waiting row — explicit pause / awaiting input
   | 'leaving';    // running-left row — going away / wrapping up
 
-export type WidgetEventName = 'click' | 'stateChange';
+export type WidgetEventName = 'stateChange';
 
 export interface SayOptions {
   ttl?: number;
