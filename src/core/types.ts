@@ -63,8 +63,10 @@ export type PetInteraction =
   // Named atlas-row states — map host state to these for richer animations
   | 'working'   // running row   — busy doing something
   | 'sending'   // running-right — delegating / dispatching
+  | 'leaving'   // running-left  — going away / wrapping up
   | 'excited'   // jumping       — success / celebration
   | 'failed'    // failed row    — error state
+  | 'greeting'  // waving row    — hello / welcome
   | 'thinking'; // review row    — deliberating / LLM thinking
 
 // ── Adapter interface ──────────────────────────────────────────────────

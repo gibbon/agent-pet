@@ -13,17 +13,57 @@
   <h1>Auto-mount integration</h1>
   <p>Pet should appear bottom-right on page load with no extra JS.</p>
   <p>
-    <button onclick="AgentPet.setState('thinking')">Thinking</button>
-    <button onclick="AgentPet.setState('building')">Building</button>
-    <button onclick="AgentPet.setState('delegating')">Delegating</button>
-    <button onclick="AgentPet.setState('success')">Success</button>
-    <button onclick="AgentPet.setState('error')">Error</button>
     <button onclick="AgentPet.setState('idle')">Idle</button>
+    <button onclick="AgentPet.setState('thinking')">Thinking <small>(review)</small></button>
+    <button onclick="AgentPet.setState('building')">Building <small>(running)</small></button>
+    <button onclick="AgentPet.setState('delegating')">Delegating <small>(running-right)</small></button>
+    <button onclick="AgentPet.setState('leaving')">Leaving <small>(running-left)</small></button>
+    <button onclick="AgentPet.setState('greeting')">Greeting <small>(waving)</small></button>
+    <button onclick="AgentPet.setState('waiting')">Waiting</button>
+    <button onclick="AgentPet.setState('success')">Success <small>(jumping)</small></button>
+    <button onclick="AgentPet.setState('error')">Error <small>(failed)</small></button>
   </p>
   <p>
     <button onclick="AgentPet.say('Build finished in 3.2s', { link: '/results', ttl: 8000 })">Say with link</button>
     <button onclick="AgentPet.configure({ name: 'Rex', glyph: '🦖', accent: '#e74c3c' })">Configure → Rex</button>
   </p>
+  <p>
+    <strong>Real atlas pets from Codex Hatchery:</strong>
+    <button onclick="loadHatcheryPet('clippy', 'Clippy')">Clippy</button>
+    <button onclick="loadHatcheryPet('totoro', 'Totoro')">Totoro</button>
+    <button onclick="loadHatcheryPet('miss-minute', 'Miss Minute')">Miss Minute</button>
+    <button onclick="loadHatcheryPet('mini-sama', 'Mini Sama')">Mini Sama</button>
+    <button onclick="loadHatcheryPet('tom', 'Tom')">Tom</button>
+  </p>
+  <p style="font-size: 11px; opacity: 0.7;">
+    Hatchery list cached on load. After picking one, click the state buttons above and watch the animation row change.
+  </p>
+  <script>
+    let hatcheryPets = null;
+    async function loadHatcheryList() {
+      if (hatcheryPets) return hatcheryPets;
+      const r = await fetch('https://j20.nz/hatchery/api/pets.json');
+      const d = await r.json();
+      hatcheryPets = {};
+      for (const p of (d.pets ?? [])) {
+        const id = p.petManifestId ?? p.id;
+        if (id) hatcheryPets[id] = p;
+      }
+      return hatcheryPets;
+    }
+    async function loadHatcheryPet(id, displayName) {
+      const list = await loadHatcheryList();
+      const pet = list[id];
+      if (!pet) { alert('Pet not found: ' + id); return; }
+      AgentPet.configure({
+        name: displayName,
+        imageUrl: pet.spritesheetUrl,
+        accent: '#7eb8da',
+        useCodexAtlas: true,
+      });
+      console.log('loaded', id, '→', pet.spritesheetUrl);
+    }
+  </script>
   <script>window.addEventListener('DOMContentLoaded', () => {
     if (window.AgentPet) {
       AgentPet.on('stateChange', (s) => console.log('state →', s));

@@ -1,2 +1,11 @@
 node_modules/
 dist/
+# Cloudflare Pages publish dir — only the source files (_headers, index.html)
+# are tracked. Build artifacts get copied in by `pnpm build:pages` on deploy.
+public/SRI.json
+public/agent-pet*.js
+public/pet.css
+public/index.d.ts
+public/core/
+public/react/
+public/widget/

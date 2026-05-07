@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>agent-pet — animated companion widget</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { background: #111; color: #eee; font-family: ui-monospace, monospace; max-width: 720px; margin: 0 auto; padding: 2rem; line-height: 1.5; }
+    h1 { color: #4ade80; }
+    code, pre { background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 4px; }
+    code { padding: 1px 5px; }
+    pre { padding: 0.75rem 1rem; overflow-x: auto; }
+    a { color: #7eb8da; }
+    button { margin: 0.25rem; padding: 0.4rem 0.8rem; background: #2a2a2a; color: #eee; border: 1px solid #444; cursor: pointer; font: inherit; }
+    button:hover { background: #3a3a3a; }
+    .demo-controls { margin: 1rem 0; }
+  </style>
+</head>
+<body>
+  <h1>agent-pet</h1>
+  <p>Tiny animated companion-pet widget. Self-hostable, no backend, ~14KB gzip.</p>
+
+  <h2>One-line install</h2>
+  <pre><code>&lt;script src="https://agent-pet.pages.dev/agent-pet-widget.iife.js"&gt;&lt;/script&gt;</code></pre>
+
+  <p>Then drive it:</p>
+  <pre><code>AgentPet.setState('thinking');
+AgentPet.say('Build done!', { link: '/results' });
+AgentPet.configure({ name: 'Rex', glyph: '🦖' });</code></pre>
+
+  <h2>Try it</h2>
+  <p>The pet you can see was loaded by the script tag at the bottom of this page.</p>
+  <div class="demo-controls">
+    <button onclick="AgentPet.setState('idle')">Idle</button>
+    <button onclick="AgentPet.setState('thinking')">Thinking</button>
+    <button onclick="AgentPet.setState('building')">Building</button>
+    <button onclick="AgentPet.setState('delegating')">Delegating</button>
+    <button onclick="AgentPet.setState('greeting')">Greeting</button>
+    <button onclick="AgentPet.setState('success')">Success</button>
+    <button onclick="AgentPet.setState('error')">Error</button>
+    <button onclick="AgentPet.say('Hello from the demo!', { ttl: 5000 })">Say</button>
+  </div>
+  <p>
+    <button onclick="loadHatchery('clippy', 'Clippy')">Load Clippy</button>
+    <button onclick="loadHatchery('totoro', 'Totoro')">Load Totoro</button>
+    <button onclick="loadHatchery('miss-minute', 'Miss Minute')">Load Miss Minute</button>
+  </p>
+
+  <h2>Docs &amp; source</h2>
+  <p>See the <a href="https://github.com/gibbon/agent-pet">GitHub repository</a> for the full README, API reference, and SRI hashes.</p>
+
+  <p style="opacity: 0.7; font-size: 0.9em;">
+    Apache-2.0 — animations ported from <a href="https://github.com/nexu-io/open-design">nexu-io/open-design</a>;
+    sample pets from <a href="https://j20.nz/hatchery/">j20.nz/hatchery/</a>.
+  </p>
+
+  <script>
+    async function loadHatchery(id, name) {
+      const r = await fetch('https://j20.nz/hatchery/api/pets.json');
+      const d = await r.json();
+      const pet = (d.pets ?? []).find(p => (p.petManifestId ?? p.id) === id);
+      if (!pet) return alert('not found');
+      AgentPet.configure({ name, imageUrl: pet.spritesheetUrl, useCodexAtlas: true, accent: '#7eb8da' });
+    }
+  </script>
+  <script src="./agent-pet-widget.iife.js" data-name="Demo" data-glyph="🦄" data-accent="#4ade80"></script>
+</body>
+</html>

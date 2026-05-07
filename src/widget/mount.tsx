@@ -5,8 +5,11 @@ import { PetProvider } from '../react/context';
 import { PetOverlay } from '../react/PetOverlay';
 import { defaultPetAdapter } from '../core/adapters/default';
 import { DEFAULT_PET_CONFIG, defaultCustomPet } from '../core/pets';
+import { CODEX_ATLAS_LAYOUT } from '../core/atlas';
 import type { WidgetState, AgentPetAPI, ConfigureOptions, SayOptions, MountOptions } from './api';
 import { SpeechQueue } from './queue';
+// @ts-expect-error — Vite resolves ?inline at build time, returns the raw CSS string.
+import petCss from '../react/pet.css?inline';
 
 interface WidgetBridgeState {
   hostState: WidgetState;
@@ -73,6 +76,12 @@ export function createAgentPetAPI(): AgentPetAPI {
     host.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;top:0;left:0;width:0;height:0';
     target.appendChild(host);
     const shadow = host.attachShadow({ mode: 'open' });
+    // Inject pet.css into the shadow root. document.head styles do NOT cross
+    // the shadow boundary, so without this the .ap-overlay > * pointer-events
+    // rule never applies and the host's pointer-events:none swallows clicks.
+    const styleEl = document.createElement('style');
+    styleEl.textContent = petCss as string;
+    shadow.appendChild(styleEl);
     const container = document.createElement('div');
     shadow.appendChild(container);
     root = createRoot(container);
@@ -104,7 +113,10 @@ export function createAgentPetAPI(): AgentPetAPI {
       try {
         const raw = localStorage.getItem(key);
         const current: typeof DEFAULT_PET_CONFIG = raw ? JSON.parse(raw) : { ...DEFAULT_PET_CONFIG };
-        const customPatch = { name: opts.name, glyph: opts.glyph, accent: opts.accent, imageUrl: opts.imageUrl };
+        const customPatch: Record<string, unknown> = {
+          name: opts.name, glyph: opts.glyph, accent: opts.accent, imageUrl: opts.imageUrl,
+        };
+        if (opts.useCodexAtlas) customPatch.atlas = CODEX_ATLAS_LAYOUT;
         const custom = { ...defaultCustomPet(), ...(current.custom ?? {}) };
         for (const [k, v] of Object.entries(customPatch)) {
           if (v !== undefined) (custom as Record<string, unknown>)[k] = v;

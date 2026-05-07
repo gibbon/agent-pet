@@ -1,4 +1,13 @@
-export type WidgetState = 'idle' | 'thinking' | 'building' | 'delegating' | 'success' | 'error';
+export type WidgetState =
+  | 'idle'        // idle row
+  | 'thinking'    // review row
+  | 'building'    // running row
+  | 'delegating'  // running-right row
+  | 'success'     // jumping row
+  | 'error'       // failed row
+  | 'greeting'    // waving row — hello / welcome
+  | 'waiting'     // waiting row — explicit pause / awaiting input
+  | 'leaving';    // running-left row — going away / wrapping up
 
 export type WidgetEventName = 'click' | 'stateChange';
 
@@ -13,6 +22,10 @@ export interface ConfigureOptions {
   accent?: string;
   imageUrl?: string;
   storageKey?: string;
+  /** Apply the standard 8×9 Codex atlas layout. Use with `imageUrl` pointing
+   *  at a spritesheet from the Codex Hatchery (j20.nz) or one produced by
+   *  the Codex hatch-pet skill. */
+  useCodexAtlas?: boolean;
 }
 
 export interface MountOptions extends ConfigureOptions {

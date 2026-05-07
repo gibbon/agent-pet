@@ -80,8 +80,10 @@ const INTERACTION_ROW_ID: Record<PetInteraction, string> = {
   // Named host-state mappings → specific atlas rows
   working:      'running',
   sending:      'running-right',
+  leaving:      'running-left',
   excited:      'jumping',
   failed:       'failed',
+  greeting:     'waving',
   thinking:     'review',
 };
 
