@@ -10,9 +10,28 @@ Live demo: **https://agent-pet.pages.dev**
 
 ### 1. CDN script tag (auto-mount)
 
+**Minimal** — emoji-glyph pet, zero config:
+
 ```html
 <script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
         data-name="Rex" data-glyph="🦖" data-accent="#e74c3c"></script>
+```
+
+**Animated atlas pet** — point at any Codex-format spritesheet:
+
+```html
+<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+        data-name="Guga"
+        data-image-url="https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/guga/spritesheet.webp"
+        data-use-codex-atlas
+        data-accent="#7eb8da"></script>
+```
+
+You provide the spritesheet URL — we don't bake one in (sprites are 80-150KB each and belong to their creators). Browse [codex-pets.net](https://codex-pets.net/) or [j20.nz/hatchery/](https://j20.nz/hatchery/) for ready-made Codex-format pets, or roll your own (see [Codex Atlas Format](#codex-atlas-format)).
+
+Drive the pet from JavaScript:
+
+```html
 <script>
   AgentPet.setState('thinking');
   AgentPet.say('Build done!', { link: '/results', ttl: 5000 });
@@ -22,16 +41,6 @@ Live demo: **https://agent-pet.pages.dev**
 The path is **versioned** — pin to `/v0.1/` (or whatever the latest stable version is) for stable URLs that won't break on a future release. The bare path `https://agent-pet.pages.dev/agent-pet-widget.iife.js` is "latest" and may include breaking changes. See [Versioning](#versioning) below.
 
 For production, also pin the bundle to a SHA-384 hash so a compromised CDN can't ship altered code (see [Subresource Integrity](#subresource-integrity-sri) below).
-
-For an animated atlas pet via script tag alone, use both `data-image-url` and `data-use-codex-atlas`:
-
-```html
-<script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
-        data-name="Guga"
-        data-image-url="https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/guga/spritesheet.webp"
-        data-use-codex-atlas
-        data-accent="#7eb8da"></script>
-```
 
 ### 2. Self-hosted
 

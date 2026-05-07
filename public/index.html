@@ -28,9 +28,15 @@
   <p>Tiny animated companion-pet widget. Self-hostable, no backend, ~14&nbsp;KB gzip.</p>
 
   <h2>One-line install</h2>
+  <p><strong>Minimal</strong> — emoji-glyph pet, zero config:</p>
   <pre><code>&lt;script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"&gt;&lt;/script&gt;</code></pre>
+  <p><strong>Animated atlas pet</strong> — point at any Codex-format spritesheet (e.g. one from <a href="https://codex-pets.net/">codex-pets.net</a>):</p>
+  <pre><code>&lt;script src="https://agent-pet.pages.dev/v0.1/agent-pet-widget.iife.js"
+        data-image-url="https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets/guga/spritesheet.webp"
+        data-use-codex-atlas
+        data-name="Guga"&gt;&lt;/script&gt;</code></pre>
   <p>Pin to <code>/v0.1/</code> for stable URLs (immutable, long cache); the bare path is "latest" and may break across releases.</p>
-  <p>Then drive it:</p>
+  <p>Then drive it from JS:</p>
   <pre><code>AgentPet.setState('thinking');
 AgentPet.say('Build done!', { link: '/results' });
 AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });</code></pre>
