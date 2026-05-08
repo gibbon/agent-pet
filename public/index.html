@@ -21,6 +21,25 @@
     button.active.primary { background: #4ade8055; border-color: #4ade80; color: #4ade80; }
     .group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem; }
     .group small { opacity: 0.5; margin-right: 0.5rem; min-width: 110px; }
+    .pet-btn { display: inline-flex; align-items: center; gap: 6px; padding-left: 4px; }
+    .pet-thumb {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      background-color: #1c1c1c;
+      background-size: cover;
+      background-position: center top;
+      background-repeat: no-repeat;
+      image-rendering: pixelated;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    /* Codex preview.webp images aren't tiled, so they fill normally.
+       Hatchery thumbs use the spritesheet's first cell — 8 cols × 9 rows. */
+    .pet-thumb.tile {
+      background-size: 800% 900%;
+      background-position: 0% 0%;
+    }
   </style>
 </head>
 <body>
@@ -43,8 +62,17 @@
 AgentPet.say('Build done!', { link: '/results' });
 AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });</code></pre>
 
+  <h2>Pet catalog</h2>
+  <p>Click any pet to make it the active companion. The pet bottom-right of the page is loaded by the script tag — pick a different one and it'll switch live.</p>
+
+  <h3>Codex Pets <small style="text-transform: none;">— popular from <a href="https://codex-pets.net/">codex-pets.net</a></small></h3>
+  <div class="group" id="codex-pets-buttons"></div>
+
+  <h3>j20.nz Hatchery</h3>
+  <div class="group" id="hatchery-buttons"></div>
+
   <h2>Try it</h2>
-  <p>The pet bottom-right was loaded by the script tag in this page. Use the buttons below to drive it.</p>
+  <p>Use the buttons below to drive the active pet's animation state and speech bubble.</p>
 
   <h3>Widget states <small style="text-transform: none;">— our semantic API</small></h3>
   <div class="group" data-state-group>
@@ -79,23 +107,18 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });</code
     <button class="primary" data-pet-id="guga" data-pet-name="Guga" data-pet-source="codex">Restore default (Guga)</button>
   </div>
 
-  <h3>Hide &amp; chat <small style="text-transform: none;">— new in v0.8</small></h3>
+  <h2>Hide</h2>
+  <p>Collapse the pet to a small dock button (the penguin in the corner). Click the dock to bring the pet back. Hidden state persists across reloads.</p>
   <div class="group">
     <button onclick="AgentPet.hide()">⤓ Hide to dock</button>
     <button onclick="AgentPet.show()">↑ Show</button>
+  </div>
+
+  <h2>Chat</h2>
+  <p>Optional: turn on the speech-bubble input. Type a message and press Enter — your handler receives a <code>userMessage</code> event. The demo handler echoes the text back via <code>say()</code>; in production you'd wire it to an LLM, helpdesk, or any backend, and call <code>say(reply)</code> to display the response.</p>
+  <div class="group">
     <button id="toggle-chat">Enable chat input</button>
   </div>
-  <p style="font-size: 0.85em; opacity: 0.7;">
-    With chat on, type into the speech-bubble input and press Enter. The demo handler echoes your message back via <code>say()</code>; in production you'd send it to an LLM / helpdesk and display the response the same way.
-  </p>
-
-  <h2>Pet catalog</h2>
-
-  <h3>Codex Pets <small style="text-transform: none;">— popular from <a href="https://codex-pets.net/">codex-pets.net</a></small></h3>
-  <div class="group" id="codex-pets-buttons"></div>
-
-  <h3>j20.nz Hatchery</h3>
-  <div class="group" id="hatchery-buttons"></div>
 
   <h2>Docs &amp; source</h2>
   <p>See the <a href="https://github.com/gibbon/agent-pet">GitHub repository</a> for the full README, API reference, and SRI hashes.</p>
@@ -110,6 +133,7 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });</code
     const CODEX_BASE = 'https://codex-pets.net/assets/pets';
     const codexPets = [
       ['guga',              'Guga'],
+      ['sonic',             'Sonic'],
       ['ikkun',             'Ikkun'],
       ['yuiju',             'Yuiju'],
       ['liangzi',           'Liangzi'],
@@ -170,12 +194,39 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });</code
 
     function renderPetButtons(elId, list, source) {
       const el = document.getElementById(elId);
-      el.innerHTML = list.map(([id, name]) =>
-        `<button data-pet-id="${id}" data-pet-name="${name.replace(/"/g, '&quot;')}" data-pet-source="${source}">${name}</button>`
-      ).join('');
+      el.innerHTML = list.map(([id, name]) => {
+        const safeName = name.replace(/"/g, '&quot;');
+        // Codex pets have a public preview.webp at the same path as the spritesheet.
+        // Hatchery thumbs are populated async from the API once it resolves.
+        const thumbStyle = source === 'codex'
+          ? `style="background-image:url('${CODEX_BASE}/${id}/preview.webp')"`
+          : '';
+        return `<button class="pet-btn" data-pet-id="${id}" data-pet-name="${safeName}" data-pet-source="${source}">`
+          + `<span class="pet-thumb" data-thumb="${id}" ${thumbStyle}></span>`
+          + `<span>${name}</span>`
+          + `</button>`;
+      }).join('');
     }
     renderPetButtons('codex-pets-buttons', codexPets, 'codex');
     renderPetButtons('hatchery-buttons', hatcheryPets, 'hatchery');
+
+    // Async: fetch hatchery catalog and fill in thumbnails. Each hatchery
+    // sprite is a Codex-format 8×9 atlas, so we crop to the first cell with
+    // background-size 800%/900% (.pet-thumb.tile).
+    (async () => {
+      try {
+        const pets = await getHatchery();
+        for (const pet of pets) {
+          const id = pet.petManifestId ?? pet.id;
+          const url = pet.spritesheetUrl;
+          if (!id || !url) continue;
+          const thumb = document.querySelector(`#hatchery-buttons [data-thumb="${id}"]`);
+          if (!thumb) continue;
+          thumb.classList.add('tile');
+          thumb.style.backgroundImage = `url('${url}')`;
+        }
+      } catch (e) { /* hatchery offline — buttons stay text-only */ }
+    })();
 
     // ── Active-button highlighting ─────────────────────────────────────
     // State buttons: highlight the most recently clicked one. Each click
