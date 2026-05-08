@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.1 — Bubble anchors to opposite side when pet is in left half
+
+The overlay was a flex column with `align-items: flex-end`, so the speech bubble always extended leftward from the sprite's right edge. When the pet was dragged to the left side of the viewport, the bubble would overflow off-screen left and visually swallow the sprite — the sprite hadn't moved, but it appeared "under the left side of the dialog" because most of the bubble was off-screen.
+
+Fix: pull the bubble out of the flex flow with `position: absolute` and flip its horizontal anchor based on which half of the viewport the sprite is in. Sprite stays put; bubble extends toward the side with more room.
+
 ## v0.8.0 — Hide/show + opt-in chat input
 
 **Hide → minimized dock.** Users can now collapse the pet to a small clickable circle that survives reloads (state in `${storageKey}:hidden`). New "Hide" button next to "Dismiss" in the speech bubble. New API: `AgentPet.hide()`, `AgentPet.show()`, `AgentPet.toggle()`, `AgentPet.hidden`. New `visibility` event fires `{ visible: boolean }` on every transition.

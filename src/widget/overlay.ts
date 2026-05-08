@@ -432,12 +432,18 @@ export class PetOverlayElement {
       return;
     }
     this.bubble.style.display = '';
+    const anchorLeft = this.bubbleAnchorsLeft();
     this.bubble.style.cssText = [
+      'position:absolute',
+      'bottom:calc(100% + 8px)',
+      anchorLeft ? 'left:0' : 'right:0',
+      'pointer-events:auto',
       'background:var(--ap-bubble-bg, #1a1a1a)',
       `border:1.5px solid ${this.active.accent}`,
       'border-radius:10px',
       'padding:8px 10px',
       'max-width:240px',
+      'width:max-content',
       'font-size:12px',
       'color:var(--ap-bubble-text, #e8e8e8)',
       `box-shadow:0 2px 12px ${this.active.accent}33`,
@@ -498,12 +504,21 @@ export class PetOverlayElement {
       `right:${this.position.right}px`,
       `bottom:${this.position.bottom}px`,
       'z-index:9999',
-      'display:flex',
-      'flex-direction:column',
-      'align-items:flex-end',
-      'gap:8px',
+      // No flex layout — the bubble is position:absolute so it doesn't push
+      // the sprite around when it opens. The sprite is the anchor; the
+      // bubble's side flips in refreshBubble() based on screen position.
       this.active ? `--pet-accent:${this.active.accent}` : '',
     ].filter(Boolean).join(';');
+  }
+
+  private bubbleAnchorsLeft(): boolean {
+    // Bubble anchors to the sprite's LEFT edge (extends rightward) when the
+    // pet is in the left half of the viewport — otherwise the 240 px bubble
+    // would clip off-screen to the left. Falls back to right-anchor if we
+    // can't read viewport width (SSR / no window).
+    if (typeof window === 'undefined') return false;
+    const spriteLeft = window.innerWidth - this.position.right - this.size;
+    return spriteLeft < window.innerWidth / 2;
   }
 
   private applySpriteWrapperStyles(): void {
