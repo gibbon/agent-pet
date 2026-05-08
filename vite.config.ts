@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
       // no JSX, so the plugin would be inert — we omit it for cleanliness.
       ...(!isWidgetBuild ? [react()] : []),
       // Generate .d.ts only on the main build — the widget builds reuse them.
-      ...(!isWidgetBuild ? [dts({ include: ['src'] })] : []),
+      ...(!isWidgetBuild ? [dts({ include: ['src'], entryRoot: 'src' })] : []),
     ],
     build: {
       sourcemap: true,

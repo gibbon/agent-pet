@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.6 — Fix: type declarations resolve under exports map again
+
+Patch release. v0.8.5 shipped `.d.ts` files under `dist/src/**` while `package.json` `exports` declared them at `dist/index.d.ts` and `dist/widget/widget-es.d.ts`. TypeScript consumers got `Could not find a declaration file for module 'agent-pet'` (implicit `any`). Caused by the `vite` 6→8 / `typescript` 5→6 bump in v0.8.5: newer `vite-plugin-dts` started preserving the `src/` source root unless told otherwise.
+
+Fix: pass `entryRoot: 'src'` to `dts(...)` in `vite.config.ts` so emitted `.d.ts` files flatten back to `dist/<area>/*.d.ts`, matching the `exports` map and the v0.7.0 layout. No source or API changes; rebuilding now produces the type tree consumers expect.
+
 ## v0.8.5 — Internal cleanup; dev deps bumped to current major lines
 
 No behaviour changes for consumers — internal robustness and code-shape work that fell out of the v0.8.4 review.
