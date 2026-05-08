@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.4 — Security + a11y patch
+
+Security findings from a code review, fixed at the boundary so every downstream interpolation is safe by construction.
+
+- **CSS injection via `imageUrl` in dock** (high) — the dock's `background-image:url(${imageUrl})` interpolated raw; `sprite.ts` already used `JSON.stringify(imageUrl)` for the same job. Fixed to match. A hostile `data-image-url` could otherwise inject CSS into the widget's shadow DOM scope.
+- **`javascript:` URL in speech-bubble link** (high) — `say({ link })` set `<a href>` with no scheme allowlist; clicking would execute attacker JS in the consumer's origin. Now validates the URL via `new URL()` and accepts only `http:`, `https:`, `mailto:`. Relative URLs still resolve correctly.
+- **CSS injection via `accent`** (medium) — `accent` flows through ~10 cssText interpolations. Now sanitized once at the `setConfig` boundary against an allowlist of color forms (hex, named, rgb/rgba, hsl/hsla); falls back to default if rejected.
+- **Pointer-event robustness** (medium) — added `pointercancel` listeners on sprite and dock so OS interruptions release pointer capture and clear drag refs cleanly. Added a reentrance guard so a second touch can't clobber the first finger's in-flight drag. Tap-action (bubble toggle / dock restore) now fires only on real `pointerup`, not on cancel.
+- **Chat input a11y** (low) — added `role="search"` + `aria-label` to the chat form and `aria-label` to the input, so screen readers announce the field beyond the placeholder.
+
+Migration: none — all changes are additive sanitization at existing seams. Apps with legitimate `imageUrl` / `accent` / `link` values are unaffected.
+
 ## v0.8.3 — Draggable dock + pet thumbnail in dock
 
 The minimized dock is now draggable (touch + mouse), the same way as the main sprite. Tapping the dock still restores the pet; only a drag-then-release moves it. Position is saved to the same `${storageKey}:position` slot as the sprite, so when the pet returns it appears wherever the dock was last placed.

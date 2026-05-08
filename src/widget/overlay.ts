@@ -64,6 +64,35 @@ function saveHidden(key: string, hidden: boolean): void {
   try { window.localStorage.setItem(key, hidden ? '1' : '0'); } catch { /* ignore */ }
 }
 
+/**
+ * Resolve a speech-bubble link to a safe href, or null if the scheme isn't
+ * an allowlisted navigation target. Blocks `javascript:`, `data:`, `vbscript:`
+ * etc. — all of which `<a href>` would happily execute on click.
+ */
+function safeBubbleLink(link: string): string | null {
+  try {
+    // base = current document so relative URLs ('/results') still work.
+    const u = new URL(link, typeof window !== 'undefined' ? window.location.href : 'http://x/');
+    if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'mailto:') {
+      return u.toString();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validate a CSS color before interpolating into cssText. Accepts the common
+ * palette syntaxes; rejects anything else so a hostile `accent` like
+ * `red;background:url(javascript:0)` can't break out of its property.
+ */
+const ACCENT_RE = /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+|rgba?\([0-9.,\s%/]+\)|hsla?\([0-9.,\s%/]+\))$/;
+function safeAccent(accent: string | undefined, fallback: string): string {
+  if (!accent) return fallback;
+  return ACCENT_RE.test(accent.trim()) ? accent.trim() : fallback;
+}
+
 export class PetOverlayElement {
   private root: HTMLElement;
   private bubble: HTMLElement;
@@ -169,6 +198,7 @@ export class PetOverlayElement {
     this.spriteWrapper.addEventListener('pointerdown', this.onPointerDown);
     this.spriteWrapper.addEventListener('pointermove', this.onPointerMove);
     this.spriteWrapper.addEventListener('pointerup', this.onPointerUp);
+    this.spriteWrapper.addEventListener('pointercancel', this.onPointerUp);
     this.spriteWrapper.addEventListener('pointerenter', this.onPointerEnter);
     this.spriteWrapper.addEventListener('pointerleave', this.onPointerLeave);
 
@@ -180,6 +210,10 @@ export class PetOverlayElement {
 
   setConfig(pet: PetConfig): void {
     const next = resolveActivePet(pet);
+    // Sanitize accent at the boundary so every downstream cssText
+    // interpolation is safe by construction. Falls back to the default if
+    // the user-supplied value isn't an allowlisted color form.
+    if (next) next.accent = safeAccent(next.accent, '#7eb8da');
     const isNewPet = !this.active || (next && this.active.id !== next.id);
     this.active = next;
     if (next) {
@@ -281,6 +315,10 @@ export class PetOverlayElement {
 
   private onPointerDown = (e: PointerEvent): void => {
     if (e.button !== 0) return;
+    // Multi-touch reentrance guard: ignore secondary pointers while a drag
+    // is in flight so the second finger doesn't clobber the first finger's
+    // capture and ref state.
+    if (this.dragRef) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     this.dragRef = {
       pointerId: e.pointerId,
@@ -328,7 +366,9 @@ export class PetOverlayElement {
     const drag = this.dragRef;
     this.dragRef = null;
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-    if (drag && !drag.moved) {
+    // Only treat as a tap on a real pointerup; pointercancel means the OS
+    // interrupted (system gesture, app switch) — don't toggle the bubble.
+    if (e.type === 'pointerup' && drag && !drag.moved) {
       this.bubbleOpen = !this.bubbleOpen;
       if (this.bubbleOpen) this.ambientIdx = (this.ambientIdx + 1) % Math.max(1, this.ambientLineCount());
       this.refreshBubble();
@@ -464,9 +504,10 @@ export class PetOverlayElement {
 
     // Re-render actions row
     this.bubbleActions.innerHTML = '';
-    if (this.currentSpeech?.link) {
+    const safeLink = this.currentSpeech?.link ? safeBubbleLink(this.currentSpeech.link) : null;
+    if (safeLink) {
       const a = document.createElement('a');
-      a.href = this.currentSpeech.link;
+      a.href = safeLink;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       a.textContent = 'Open →';
@@ -584,9 +625,11 @@ export class PetOverlayElement {
     // when the active pet has no image configured.
     const bgStyles: string[] = [];
     let textGlyph = '';
+    // JSON.stringify quotes the URL inside url(...) — same defensive pattern
+    // sprite.ts uses to prevent CSS injection via attacker-supplied imageUrl.
     if (imageUrl && atlas) {
       bgStyles.push(
-        `background-image:url(${imageUrl})`,
+        `background-image:url(${JSON.stringify(imageUrl)})`,
         `background-size:${atlas.cols * 100}% ${atlas.rows * 100}%`,
         'background-position:0% 0%',
         'background-repeat:no-repeat',
@@ -594,7 +637,7 @@ export class PetOverlayElement {
       );
     } else if (imageUrl) {
       bgStyles.push(
-        `background-image:url(${imageUrl})`,
+        `background-image:url(${JSON.stringify(imageUrl)})`,
         'background-size:cover',
         'background-position:center',
         'background-repeat:no-repeat',
@@ -634,6 +677,7 @@ export class PetOverlayElement {
     dock.addEventListener('pointerdown', this.onDockPointerDown);
     dock.addEventListener('pointermove', this.onDockPointerMove);
     dock.addEventListener('pointerup', this.onDockPointerUp);
+    dock.addEventListener('pointercancel', this.onDockPointerUp);
     dock.addEventListener('pointerenter', (e) => {
       if (e.pointerType === 'mouse') dock.style.transform = 'scale(1.08)';
     });
@@ -646,6 +690,7 @@ export class PetOverlayElement {
 
   private onDockPointerDown = (e: PointerEvent): void => {
     if (e.button !== 0) return;
+    if (this.dockDragRef) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     this.dockDragRef = {
       pointerId: e.pointerId,
@@ -678,8 +723,9 @@ export class PetOverlayElement {
     this.dockDragRef = null;
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     if (this.dock) this.dock.style.cursor = 'grab';
-    // Tap (no drag) restores the pet; drag just repositions.
-    if (drag && !drag.moved) this.setHidden(false);
+    // Tap (no drag) restores the pet; drag just repositions. pointercancel
+    // means the OS interrupted — don't restore in that case.
+    if (e.type === 'pointerup' && drag && !drag.moved) this.setHidden(false);
   };
 
   private removeDock(): void {
@@ -699,10 +745,13 @@ export class PetOverlayElement {
     }
     const form = document.createElement('form');
     form.className = 'ap-chat';
+    form.setAttribute('role', 'search');
+    form.setAttribute('aria-label', this.active ? `Send a message to ${this.active.name}` : 'Send a message');
     form.style.cssText = 'display:flex;gap:4px;margin-top:6px';
     const input = document.createElement('input');
     input.type = 'text';
     input.placeholder = this.chatPlaceholder;
+    input.setAttribute('aria-label', this.chatPlaceholder);
     input.autocomplete = 'off';
     input.spellcheck = false;
     input.style.cssText = [
