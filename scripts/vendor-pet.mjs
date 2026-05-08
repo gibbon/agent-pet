@@ -15,7 +15,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const STORAGE_BASE = 'https://ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets';
+const STORAGE_BASE = 'https://codex-pets.net/assets/pets';
 
 const ids = process.argv.slice(2);
 if (ids.length === 0) {
