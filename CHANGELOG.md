@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.8.7 — Fix: sprite invisible on first mount with `data-image-url`
+
+Patch release. Mounting via `<script data-image-url="…" data-use-codex-atlas>` (or any path that supplied `imageUrl` / `atlas` / `useCodexAtlas` to the initial `mount()`) wrote the new config to `localStorage` correctly but the overlay never received it, so `resolveActivePet()` returned `null` and the sprite stayed in `'empty'` mode — the host element mounted but rendered nothing.
+
+Cause: `mount()` called `api.configure(opts)` to persist the new config, which dispatches `agent-pet:config-changed`. The listener that pulls the config back into the overlay was attached *after* that call, so the very event meant to seed the initial render fired into a void.
+
+Fix: in `mount.ts`, always call `reloadConfigFromStorage()` after the configure path, not only on the no-opts branch. One-line change; no public API impact.
+
 ## v0.8.6 — Fix: type declarations resolve under exports map again
 
 Patch release. v0.8.5 shipped `.d.ts` files under `dist/src/**` while `package.json` `exports` declared them at `dist/index.d.ts` and `dist/widget/widget-es.d.ts`. TypeScript consumers got `Could not find a declaration file for module 'agent-pet'` (implicit `any`). Caused by the `vite` 6→8 / `typescript` 5→6 bump in v0.8.5: newer `vite-plugin-dts` started preserving the `src/` source root unless told otherwise.

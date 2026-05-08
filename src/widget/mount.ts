@@ -127,11 +127,13 @@ export function createAgentPetAPI(): AgentPetAPI {
     });
 
     // Apply any new config in opts (these write through to localStorage too).
+    // Always pull into the overlay afterwards: configure() dispatches a
+    // config-changed event but the listener is attached below, so on initial
+    // mount the dispatched event has no listener yet — pull explicitly.
     if (opts.name || opts.glyph || opts.accent || opts.imageUrl || opts.atlas || opts.useCodexAtlas || opts.storageKey) {
       api.configure(opts);
-    } else {
-      reloadConfigFromStorage();
     }
+    reloadConfigFromStorage();
     overlay.setHostState(hostState);
     overlay.setChat(chatEnabled, chatPlaceholder);
 
