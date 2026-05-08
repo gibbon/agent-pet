@@ -529,6 +529,14 @@ export class PetOverlayElement {
       `height:${this.size}px`,
       'cursor:grab',
       'user-select:none',
+      // Disable native touch gestures (scroll, zoom, double-tap) on the
+      // sprite so pointerdown/move/up fire on touch. Without this, mobile
+      // browsers consume the touch as a scroll and never deliver pointer
+      // events, making the pet undraggable. Restricted to the sprite —
+      // outside it, the page scrolls/zooms normally.
+      'touch-action:none',
+      '-webkit-user-select:none',
+      '-webkit-touch-callout:none',
       'border-radius:50%',
       `animation:${animation}`,
       'display:flex',

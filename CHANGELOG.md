@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.8.2 — Make pet draggable on mobile
+
+The drag implementation already used pointer events (which support touch in spec), but mobile browsers were consuming the touch as a scroll gesture before our handlers saw it. Adding `touch-action: none` (plus `-webkit-touch-callout: none` to suppress the long-press preview on iOS) to the sprite restores drag on touch devices. Scope is limited to the sprite — the rest of the page scrolls and zooms normally.
+
 ## v0.8.1 — Bubble anchors to opposite side when pet is in left half
 
 The overlay was a flex column with `align-items: flex-end`, so the speech bubble always extended leftward from the sprite's right edge. When the pet was dragged to the left side of the viewport, the bubble would overflow off-screen left and visually swallow the sprite — the sprite hadn't moved, but it appeared "under the left side of the dialog" because most of the bubble was off-screen.
