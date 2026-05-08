@@ -291,6 +291,18 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });</code
         chatBtn.textContent = chatOn ? 'Disable chat input' : 'Enable chat input';
         chatBtn.classList.toggle('primary', chatOn);
       };
+
+      // ?bubble=text&link=url — opens the speech bubble on load. Used by
+      // scripts/screenshot.mjs to capture the README hero with a dialog
+      // visible. Harmless for human visitors who'd normally just click the pet.
+      const params = new URLSearchParams(location.search);
+      const bubbleText = params.get('bubble');
+      if (bubbleText) {
+        AgentPet.say(bubbleText, {
+          ttl: 60000,
+          link: params.get('link') ?? undefined,
+        });
+      }
     });
   </script>
 </body>
