@@ -205,7 +205,10 @@ export function createAgentPetAPI(): AgentPetAPI {
         }
         playRevertTimer = setTimeout(() => {
           playRevertTimer = null;
-          actionSpawnTimers = [];
+          // Symmetric cleanup: if the consumer passed a shorter durationMs
+          // than the natural action duration, late-frame spawns would
+          // otherwise still fire after revert.
+          clearActionSpawnTimers();
           overlay?.endAction();
           applyState(persistentState);
         }, durationMs);

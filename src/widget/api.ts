@@ -101,7 +101,13 @@ export interface AgentPetAPI {
   configure(opts: ConfigureOptions): void;
   /** Load a pet manifest (URL or inline object) — applies the manifest's
    *  imageUrl, atlas, actions and stateMap in one call. The recommended
-   *  way to bundle a custom pet with semantic actions. */
+   *  way to bundle a custom pet with semantic actions.
+   *
+   *  Mounting order: this method only persists the config and dispatches
+   *  the change event. If the pet hasn't been mounted yet, call mount()
+   *  afterward and the overlay will pick the manifest up via loadConfig.
+   *  Calling order matters less in practice — both `mount(); loadManifest(url)`
+   *  and `loadManifest(url); mount()` produce the same end state. */
   loadManifest(source: PetManifest | string): Promise<void>;
   /** Wire DOM events (form submit, page load, external links, etc.) to pet
    *  state changes. Replaces any previous observe() call — pass {} to disable

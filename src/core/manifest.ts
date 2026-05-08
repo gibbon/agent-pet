@@ -81,13 +81,35 @@ export interface PetManifest {
   stateMap?: StateMap;
 }
 
+/** Acceptable schemes for `spritesheet`. Excludes `javascript:`, `data:`,
+ *  `vbscript:` etc. Same allowlist style as the speech-bubble link sanitizer
+ *  in overlay.ts. Relative URLs (no scheme at all) pass through. */
+const SAFE_SCHEMES = /^(https?|file):/i;
+
 /** Parse and validate a raw JSON object as a PetManifest. Throws on invalid
- *  shape. Returns a typed manifest with defaults applied. */
+ *  shape. Sanitizes string fields at the boundary so downstream cssText
+ *  interpolations are safe by construction — accent goes through
+ *  safeAccent() in setConfig but we drop obvious garbage here. */
 export function parsePetManifest(raw: unknown): PetManifest {
   if (!raw || typeof raw !== 'object') throw new Error('Manifest must be a JSON object');
   const m = raw as Record<string, unknown>;
   if (typeof m.id !== 'string' || !m.id.trim()) throw new Error('Manifest.id must be a non-empty string');
   if (typeof m.spritesheet !== 'string' || !m.spritesheet.trim()) throw new Error('Manifest.spritesheet must be a non-empty string');
+  // Reject non-relative URLs that aren't http/https/file. data: and
+  // javascript: are blocked because they can carry arbitrary payloads
+  // even when used in background-image: url(...).
+  if (m.spritesheet.includes(':') && !SAFE_SCHEMES.test(m.spritesheet)) {
+    throw new Error(`Manifest.spritesheet scheme not allowed: ${m.spritesheet.split(':')[0]}:`);
+  }
   if (!m.atlas || typeof m.atlas !== 'object') throw new Error('Manifest.atlas is required');
+  if (m.actions !== undefined) {
+    if (typeof m.actions !== 'object' || m.actions === null) throw new Error('Manifest.actions must be an object');
+    for (const [name, spec] of Object.entries(m.actions as Record<string, unknown>)) {
+      if (!spec || typeof spec !== 'object') throw new Error(`Action "${name}" must be an object`);
+      if (typeof (spec as Record<string, unknown>).row !== 'string') {
+        throw new Error(`Action "${name}".row must be a string`);
+      }
+    }
+  }
   return raw as PetManifest;
 }
