@@ -559,7 +559,7 @@ export class PetOverlayElement {
   private renderDock(): void {
     if (this.dock) return;
     const accent = this.active?.accent ?? '#7eb8da';
-    const glyph = this.active?.glyph ?? '🐾';
+    const glyph = '🐧';
     const dockSize = Math.max(36, Math.round(this.size * 0.45));
     const dock = document.createElement('button');
     dock.type = 'button';
