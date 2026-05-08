@@ -186,6 +186,10 @@ export interface PetLibraryEntry {
   id: string;        // catalog ID or 'custom:<timestamp>' for uploaded pets
   adoptedAt: number;
   custom: PetCustom; // full config including imageUrl / atlas data
+  /** Mirrors `PetConfig.schemaVersion`. Same migration list applies, same
+   *  once-per-record discipline so libraries don't get rewritten on every
+   *  load when a future migration unconditionally rewrites `custom`. */
+  schemaVersion?: number;
 }
 
 const LIBRARY_KEY = 'agent-pet:library';
@@ -194,13 +198,17 @@ export class LocalStoragePetLibrary {
   load(): PetLibraryEntry[] {
     if (typeof window === 'undefined') return [];
     try {
-      const entries = JSON.parse(window.localStorage.getItem(LIBRARY_KEY) ?? '[]') as PetLibraryEntry[];
+      const raw = JSON.parse(window.localStorage.getItem(LIBRARY_KEY) ?? '[]');
+      // Defensive: a corrupted localStorage value shouldn't nuke the API.
+      if (!Array.isArray(raw)) return [];
+      const entries = raw as PetLibraryEntry[];
       let dirty = false;
       const next = entries.map(e => {
-        const migrated = migratePetCustom(e.custom);
-        if (migrated === e.custom) return e;
+        const fromVersion = e.schemaVersion ?? 1;
+        if (fromVersion >= CONFIG_SCHEMA_VERSION) return e;
+        const migrated = migratePetCustom(e.custom, fromVersion);
         dirty = true;
-        return { ...e, custom: migrated };
+        return { ...e, custom: migrated, schemaVersion: CONFIG_SCHEMA_VERSION };
       });
       if (dirty) this.save(next);
       return next;

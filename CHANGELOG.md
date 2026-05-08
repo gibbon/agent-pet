@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.5 — Internal cleanup; dev deps bumped to current major lines
+
+No behaviour changes for consumers — internal robustness and code-shape work that fell out of the v0.8.4 review.
+
+- **`PetLibraryEntry.schemaVersion`.** Library entries now follow the same once-per-record migration discipline as `PetConfig`. Fixes a latent bug where a future migration that unconditionally rewrites `custom` would have caused a localStorage write on every page load. Also added an `Array.isArray()` guard so a corrupted library JSON value falls back to an empty list instead of throwing.
+- **Bubble re-evaluates anchor on `window.resize`.** Portrait↔landscape rotates and window resizes now flip the bubble side correctly without waiting for the next state change.
+- **Static bubble styles lifted to `pet.css`.** Removed ~14 lines of `cssText` rebuilds per `refreshBubble()` call. Accent colour and 20%-alpha box-shadow now derive from `--pet-accent` via `color-mix(in srgb, … 20%, transparent)`. Saves ~250 B in the IIFE bundle.
+- **Pointer-drag handlers deduplicated.** Sprite and dock now share a single `attachDraggable()` helper that owns the ref/capture/threshold/clamping/`pointercancel`/multi-touch reentrance logic. Future drag fixes only land in one place.
+- **Dev deps updated to current major lines:** `vite` 6 → 8, `@vitejs/plugin-react` 4 → 6, `typescript` 5 → 6. Required adding `src/css.d.ts` for TS 6's stricter side-effect import handling.
+
+Bundle: IIFE 9.8 KB gzipped (no measurable change from 0.8.4 once you account for the helper offsetting the cssText savings).
+
 ## v0.8.4 — Security + a11y patch
 
 Security findings from a code review, fixed at the boundary so every downstream interpolation is safe by construction.

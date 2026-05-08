@@ -13,8 +13,8 @@ import { attachObservers } from './observer';
 
 // pet.css contents inlined at build time. Shadow DOM doesn't inherit
 // document.head styles, so we manually inject this <style> into each
-// shadow root we create.
-// @ts-expect-error — Vite resolves ?inline at build time, returns the raw CSS string.
+// shadow root we create. Vite handles the ?inline transform; the type
+// declaration lives in src/css.d.ts.
 import petCss from '../react/pet.css?inline';
 
 const CONFIG_CHANGED_EVENT = 'agent-pet:config-changed';

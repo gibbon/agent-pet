@@ -56,3 +56,25 @@
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
+
+/* ── Speech bubble ────────────────────────────────────────────────────
+ * Static structure here; only the side-flip (--left / --right) is toggled
+ * at runtime. The accent-derived colours come from --pet-accent set on the
+ * overlay root by overlay.ts:setConfig(). color-mix gives us the 20% shadow
+ * alpha without hex-string concatenation. */
+.ap-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  pointer-events: auto;
+  background: var(--ap-bubble-bg, #1a1a1a);
+  color: var(--ap-bubble-text, #e8e8e8);
+  border: 1.5px solid var(--pet-accent, #7eb8da);
+  border-radius: 10px;
+  padding: 8px 10px;
+  max-width: 240px;
+  width: max-content;
+  font-size: 12px;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--pet-accent, #7eb8da) 20%, transparent);
+}
+.ap-bubble--left  { left: 0; right: auto; }
+.ap-bubble--right { right: 0; left: auto; }

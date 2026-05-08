@@ -16,8 +16,6 @@ const AMBIENT_REST_MIN_MS = 9000;
 const AMBIENT_REST_VARIANCE_MS = 9000;
 const AMBIENT_INITIAL_DELAY_MIN_MS = 4000;
 const AMBIENT_INITIAL_DELAY_VARIANCE_MS = 3000;
-const DRAG_GESTURE_MIN_PX = 14;
-const DRAG_AXIS_BIAS = 1.18;
 const BUBBLE_INITIAL_OPEN_MS = 4000;
 
 interface Position {
@@ -93,6 +91,111 @@ function safeAccent(accent: string | undefined, fallback: string): string {
   return ACCENT_RE.test(accent.trim()) ? accent.trim() : fallback;
 }
 
+/** Drag bookkeeping shared between sprite and dock. */
+interface DragState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startRight: number;
+  startBottom: number;
+  moved: boolean;
+}
+
+/** Direction is sprite-only; dock drag doesn't animate by direction. */
+type DragDirection = 'right' | 'left' | 'up' | 'down';
+const DRAG_GESTURE_MIN_PX = 14;
+const DRAG_AXIS_BIAS = 1.18;
+
+interface DraggableConfig {
+  target: HTMLElement;
+  /** How far the position is from each viewport edge before the drag starts.
+   *  Used to clamp inside [8, viewport - size - 24]. */
+  size: number;
+  /** Read the current `{right, bottom}` position. */
+  getPosition: () => Position;
+  /** Apply a new position (caller is responsible for re-rendering). */
+  setPosition: (p: Position) => void;
+  /** Fired before drag starts. */
+  onPointerDown?: () => void;
+  /** Fired on every move tick after the 4px threshold; the direction is
+   *  recomputed only when the dominant axis flips so consumers can debounce. */
+  onDragDirection?: (dir: DragDirection) => void;
+  /** Fired on `pointerup` (not `pointercancel`) when the user didn't drag. */
+  onTap?: (e: PointerEvent) => void;
+  /** Fired on every pointerup AND pointercancel — for cursor reset etc. */
+  onEnd?: (didMove: boolean) => void;
+}
+
+/** Wires pointer-event drag listeners on `target` and returns a detach fn.
+ *  Centralises the ref/capture/threshold/clamping logic so sprite and dock
+ *  share the same robustness fixes (pointercancel, multi-touch reentrance). */
+function attachDraggable(opts: DraggableConfig): () => void {
+  let state: DragState | null = null;
+  let direction: DragDirection | null = null;
+
+  const onDown = (e: PointerEvent): void => {
+    if (e.button !== 0) return;
+    if (state) return; // multi-touch reentrance guard
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const pos = opts.getPosition();
+    state = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startRight: pos.right,
+      startBottom: pos.bottom,
+      moved: false,
+    };
+    direction = null;
+    opts.onPointerDown?.();
+  };
+
+  const onMove = (e: PointerEvent): void => {
+    if (!state) return;
+    const dx = e.clientX - state.startX;
+    const dy = e.clientY - state.startY;
+    if (!state.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+    state.moved = true;
+    opts.setPosition({
+      right: Math.max(8, Math.min(window.innerWidth - opts.size - 24, state.startRight - dx)),
+      bottom: Math.max(8, Math.min(window.innerHeight - opts.size - 24, state.startBottom - dy)),
+    });
+    if (opts.onDragDirection) {
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      if (absX < DRAG_GESTURE_MIN_PX && absY < DRAG_GESTURE_MIN_PX) return;
+      let next: DragDirection | null = null;
+      if (absX >= absY * DRAG_AXIS_BIAS) next = dx > 0 ? 'right' : 'left';
+      else if (absY >= absX * DRAG_AXIS_BIAS) next = dy < 0 ? 'up' : 'down';
+      if (next && next !== direction) {
+        direction = next;
+        opts.onDragDirection(next);
+      }
+    }
+  };
+
+  const onUp = (e: PointerEvent): void => {
+    const drag = state;
+    state = null;
+    direction = null;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (e.type === 'pointerup' && drag && !drag.moved) opts.onTap?.(e);
+    opts.onEnd?.(drag?.moved ?? false);
+  };
+
+  opts.target.addEventListener('pointerdown', onDown);
+  opts.target.addEventListener('pointermove', onMove);
+  opts.target.addEventListener('pointerup', onUp);
+  opts.target.addEventListener('pointercancel', onUp);
+
+  return () => {
+    opts.target.removeEventListener('pointerdown', onDown);
+    opts.target.removeEventListener('pointermove', onMove);
+    opts.target.removeEventListener('pointerup', onUp);
+    opts.target.removeEventListener('pointercancel', onUp);
+  };
+}
+
 export class PetOverlayElement {
   private root: HTMLElement;
   private bubble: HTMLElement;
@@ -131,23 +234,10 @@ export class PetOverlayElement {
   private ambientPlayTimer: ReturnType<typeof setTimeout> | null = null;
   private ambientRestTimer: ReturnType<typeof setTimeout> | null = null;
   private ambientLastPlayedId: string | undefined;
-  private dragRef: {
-    pointerId: number;
-    startX: number;
-    startY: number;
-    startRight: number;
-    startBottom: number;
-    moved: boolean;
-    direction: 'right' | 'left' | 'up' | 'down' | null;
-  } | null = null;
-  private dockDragRef: {
-    pointerId: number;
-    startX: number;
-    startY: number;
-    startRight: number;
-    startBottom: number;
-    moved: boolean;
-  } | null = null;
+  private detachSpriteDrag: (() => void) | null = null;
+  private detachDockDrag: (() => void) | null = null;
+  private spriteDragInFlight = false;
+  private dockDragInFlight = false;
 
   constructor(parent: ParentNode, opts: OverlayOptions) {
     this.size = opts.size ?? 96;
@@ -195,16 +285,54 @@ export class PetOverlayElement {
     this.sprite = new PetSprite(this.spriteWrapper, this.size);
 
     // ── Event listeners ─────────────────────────────────────────────
-    this.spriteWrapper.addEventListener('pointerdown', this.onPointerDown);
-    this.spriteWrapper.addEventListener('pointermove', this.onPointerMove);
-    this.spriteWrapper.addEventListener('pointerup', this.onPointerUp);
-    this.spriteWrapper.addEventListener('pointercancel', this.onPointerUp);
+    this.detachSpriteDrag = attachDraggable({
+      target: this.spriteWrapper,
+      size: this.size,
+      getPosition: () => this.position,
+      setPosition: (p) => {
+        this.position = p;
+        this.applyOverlayStyles();
+        savePosition(this.positionKey, this.position);
+      },
+      onPointerDown: () => {
+        this.spriteDragInFlight = true;
+        this.armWaitingTimer();
+      },
+      onDragDirection: (dir) => {
+        this.setGestureInteraction(
+          dir === 'right' ? 'drag-right' :
+          dir === 'left'  ? 'drag-left'  :
+          dir === 'up'    ? 'drag-up'    : 'drag-down',
+        );
+        this.armWaitingTimer();
+      },
+      onTap: () => {
+        this.bubbleOpen = !this.bubbleOpen;
+        if (this.bubbleOpen) this.ambientIdx = (this.ambientIdx + 1) % Math.max(1, this.ambientLineCount());
+        this.refreshBubble();
+      },
+      onEnd: () => {
+        this.spriteDragInFlight = false;
+        this.setGestureInteraction(this.hovered ? 'hover' : null);
+        this.armWaitingTimer();
+      },
+    });
     this.spriteWrapper.addEventListener('pointerenter', this.onPointerEnter);
     this.spriteWrapper.addEventListener('pointerleave', this.onPointerLeave);
 
     if (this.hidden) this.applyHiddenState();
     this.armWaitingTimer();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this.onWindowResize);
+    }
   }
+
+  // Re-flip the bubble's anchor side when the viewport changes — without this,
+  // a portrait→landscape rotate or window resize can leave the bubble running
+  // off the wrong edge until the next state change.
+  private onWindowResize = (): void => {
+    if (this.bubbleOpen) this.refreshBubble();
+  };
 
   // ── Public setters ────────────────────────────────────────────────
 
@@ -280,11 +408,15 @@ export class PetOverlayElement {
     if (this.waitingTimer) clearTimeout(this.waitingTimer);
     if (this.bubbleAutoCloseTimer) clearTimeout(this.bubbleAutoCloseTimer);
     this.clearAmbient();
-    this.spriteWrapper.removeEventListener('pointerdown', this.onPointerDown);
-    this.spriteWrapper.removeEventListener('pointermove', this.onPointerMove);
-    this.spriteWrapper.removeEventListener('pointerup', this.onPointerUp);
+    this.detachSpriteDrag?.();
+    this.detachSpriteDrag = null;
+    this.detachDockDrag?.();
+    this.detachDockDrag = null;
     this.spriteWrapper.removeEventListener('pointerenter', this.onPointerEnter);
     this.spriteWrapper.removeEventListener('pointerleave', this.onPointerLeave);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', this.onWindowResize);
+    }
     this.sprite.destroy();
     this.root.remove();
   }
@@ -313,79 +445,15 @@ export class PetOverlayElement {
 
   // ── Pointer / drag handling ───────────────────────────────────────
 
-  private onPointerDown = (e: PointerEvent): void => {
-    if (e.button !== 0) return;
-    // Multi-touch reentrance guard: ignore secondary pointers while a drag
-    // is in flight so the second finger doesn't clobber the first finger's
-    // capture and ref state.
-    if (this.dragRef) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    this.dragRef = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      startRight: this.position.right,
-      startBottom: this.position.bottom,
-      moved: false,
-      direction: null,
-    };
-    this.armWaitingTimer();
-  };
-
-  private onPointerMove = (e: PointerEvent): void => {
-    const drag = this.dragRef;
-    if (!drag) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
-    drag.moved = true;
-    this.position = {
-      right: Math.max(8, Math.min(window.innerWidth - this.size - 24, drag.startRight - dx)),
-      bottom: Math.max(8, Math.min(window.innerHeight - this.size - 24, drag.startBottom - dy)),
-    };
-    this.applyOverlayStyles();
-    savePosition(this.positionKey, this.position);
-    const absX = Math.abs(dx);
-    const absY = Math.abs(dy);
-    if (absX < DRAG_GESTURE_MIN_PX && absY < DRAG_GESTURE_MIN_PX) return;
-    let dir: 'right' | 'left' | 'up' | 'down' | null = null;
-    if (absX >= absY * DRAG_AXIS_BIAS) dir = dx > 0 ? 'right' : 'left';
-    else if (absY >= absX * DRAG_AXIS_BIAS) dir = dy < 0 ? 'up' : 'down';
-    if (dir && dir !== drag.direction) {
-      drag.direction = dir;
-      this.setGestureInteraction(
-        dir === 'right' ? 'drag-right' :
-        dir === 'left' ? 'drag-left' :
-        dir === 'up' ? 'drag-up' : 'drag-down',
-      );
-    }
-    this.armWaitingTimer();
-  };
-
-  private onPointerUp = (e: PointerEvent): void => {
-    const drag = this.dragRef;
-    this.dragRef = null;
-    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-    // Only treat as a tap on a real pointerup; pointercancel means the OS
-    // interrupted (system gesture, app switch) — don't toggle the bubble.
-    if (e.type === 'pointerup' && drag && !drag.moved) {
-      this.bubbleOpen = !this.bubbleOpen;
-      if (this.bubbleOpen) this.ambientIdx = (this.ambientIdx + 1) % Math.max(1, this.ambientLineCount());
-      this.refreshBubble();
-    }
-    this.setGestureInteraction(this.hovered ? 'hover' : null);
-    this.armWaitingTimer();
-  };
-
   private onPointerEnter = (): void => {
     this.hovered = true;
-    if (!this.dragRef) this.setGestureInteraction('hover');
+    if (!this.spriteDragInFlight) this.setGestureInteraction('hover');
     this.armWaitingTimer();
   };
 
   private onPointerLeave = (): void => {
     this.hovered = false;
-    if (!this.dragRef) this.setGestureInteraction(null);
+    if (!this.spriteDragInFlight) this.setGestureInteraction(null);
     this.armWaitingTimer();
   };
 
@@ -480,22 +548,12 @@ export class PetOverlayElement {
       return;
     }
     this.bubble.style.display = '';
+    // Static styles live in pet.css under .ap-bubble; only the side-flip
+    // class is dynamic. Accent-driven colours come from --pet-accent on
+    // the overlay root, set in applyOverlayStyles().
     const anchorLeft = this.bubbleAnchorsLeft();
-    this.bubble.style.cssText = [
-      'position:absolute',
-      'bottom:calc(100% + 8px)',
-      anchorLeft ? 'left:0' : 'right:0',
-      'pointer-events:auto',
-      'background:var(--ap-bubble-bg, #1a1a1a)',
-      `border:1.5px solid ${this.active.accent}`,
-      'border-radius:10px',
-      'padding:8px 10px',
-      'max-width:240px',
-      'width:max-content',
-      'font-size:12px',
-      'color:var(--ap-bubble-text, #e8e8e8)',
-      `box-shadow:0 2px 12px ${this.active.accent}33`,
-    ].join(';');
+    this.bubble.classList.toggle('ap-bubble--left', anchorLeft);
+    this.bubble.classList.toggle('ap-bubble--right', !anchorLeft);
 
     this.bubbleNameEl.textContent = this.active.name;
     this.bubbleNameEl.style.color = this.active.accent;
@@ -674,10 +732,24 @@ export class PetOverlayElement {
       '-webkit-user-select:none',
       '-webkit-touch-callout:none',
     ].join(';');
-    dock.addEventListener('pointerdown', this.onDockPointerDown);
-    dock.addEventListener('pointermove', this.onDockPointerMove);
-    dock.addEventListener('pointerup', this.onDockPointerUp);
-    dock.addEventListener('pointercancel', this.onDockPointerUp);
+    this.detachDockDrag?.();
+    this.detachDockDrag = attachDraggable({
+      target: dock,
+      size: this.size,
+      getPosition: () => this.position,
+      setPosition: (p) => {
+        this.position = p;
+        this.applyOverlayStyles();
+        savePosition(this.positionKey, this.position);
+        dock.style.cursor = 'grabbing';
+      },
+      onPointerDown: () => { this.dockDragInFlight = true; },
+      onTap: () => this.setHidden(false),
+      onEnd: () => {
+        this.dockDragInFlight = false;
+        dock.style.cursor = 'grab';
+      },
+    });
     dock.addEventListener('pointerenter', (e) => {
       if (e.pointerType === 'mouse') dock.style.transform = 'scale(1.08)';
     });
@@ -686,50 +758,10 @@ export class PetOverlayElement {
     this.dock = dock;
   }
 
-  // ── Dock drag handling ────────────────────────────────────────────
-
-  private onDockPointerDown = (e: PointerEvent): void => {
-    if (e.button !== 0) return;
-    if (this.dockDragRef) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    this.dockDragRef = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      startRight: this.position.right,
-      startBottom: this.position.bottom,
-      moved: false,
-    };
-  };
-
-  private onDockPointerMove = (e: PointerEvent): void => {
-    const drag = this.dockDragRef;
-    if (!drag) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
-    drag.moved = true;
-    this.position = {
-      right: Math.max(8, Math.min(window.innerWidth - this.size - 24, drag.startRight - dx)),
-      bottom: Math.max(8, Math.min(window.innerHeight - this.size - 24, drag.startBottom - dy)),
-    };
-    this.applyOverlayStyles();
-    savePosition(this.positionKey, this.position);
-    if (this.dock) this.dock.style.cursor = 'grabbing';
-  };
-
-  private onDockPointerUp = (e: PointerEvent): void => {
-    const drag = this.dockDragRef;
-    this.dockDragRef = null;
-    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-    if (this.dock) this.dock.style.cursor = 'grab';
-    // Tap (no drag) restores the pet; drag just repositions. pointercancel
-    // means the OS interrupted — don't restore in that case.
-    if (e.type === 'pointerup' && drag && !drag.moved) this.setHidden(false);
-  };
-
   private removeDock(): void {
     if (!this.dock) return;
+    this.detachDockDrag?.();
+    this.detachDockDrag = null;
     this.dock.remove();
     this.dock = null;
   }
