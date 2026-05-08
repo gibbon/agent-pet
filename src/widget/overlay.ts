@@ -220,13 +220,16 @@ export class PetOverlayElement {
 
   // State
   private active: ResolvedPet | null = null;
-  private hostState: WidgetState = 'idle';
+  private hostState: string = 'idle';
   private gestureInteraction: PetInteraction | null = null;
   private currentSpeech: { text: string; link?: string } | null = null;
   private bubbleOpen = false;
   private hovered = false;
   private ambientIdx = 0;
   private ambientRowId: string | null = null;
+  /** Set by beginAction() to override the row resolution while a manifest
+   *  action is playing. Cleared by endAction(). */
+  private actionMode: { rowId: string; expandUp?: number; expandDown?: number } | null = null;
 
   // Timers / refs
   private waitingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -363,7 +366,7 @@ export class PetOverlayElement {
     }
   }
 
-  setHostState(state: WidgetState): void {
+  setHostState(state: string): void {
     if (this.hostState === state) return;
     const wasIdle = this.computedInteraction() === 'idle';
     this.hostState = state;
@@ -378,6 +381,49 @@ export class PetOverlayElement {
     } else if (!wasIdle && this.computedInteraction() === 'idle') {
       this.startAmbient();
     }
+  }
+
+  /** Override the row currently being played, used by play() when a manifest
+   *  action wants a specific row (and optional vertical expansion) regardless
+   *  of the standard interaction-→-row mapping. Pair with endAction() to revert. */
+  beginAction(rowId: string, opts: { expandUp?: number; expandDown?: number } = {}): void {
+    this.actionMode = { rowId, expandUp: opts.expandUp, expandDown: opts.expandDown };
+    this.clearAmbient();
+    this.applySpriteWrapperStyles();
+    this.applyInteractionToSprite();
+  }
+
+  endAction(): void {
+    if (!this.actionMode) return;
+    this.actionMode = null;
+    this.applySpriteWrapperStyles();
+    this.applyInteractionToSprite();
+    if (this.computedInteraction() === 'idle') this.startAmbient();
+  }
+
+  /** Return the playback fps for a given row id from the active atlas, or
+   *  undefined if the row isn't defined. Used by play() to time projectile
+   *  spawns relative to the action's row frame rate. */
+  rowFps(rowId: string): number | undefined {
+    return this.active?.atlas?.rowsDef.find((r) => r.id === rowId)?.fps;
+  }
+
+  /** Return the row's frame count from the active atlas, or undefined. */
+  rowFrames(rowId: string): number | undefined {
+    return this.active?.atlas?.rowsDef.find((r) => r.id === rowId)?.frames;
+  }
+
+  /** Center of the sprite in viewport coordinates — used as the projectile
+   *  spawn anchor. */
+  spriteCenter(): { x: number; y: number } {
+    const rect = this.spriteWrapper.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+
+  /** The shadow root the overlay was attached to. Projectiles attach here
+   *  so they share the pet's CSS scope. */
+  getRoot(): HTMLElement {
+    return this.root;
   }
 
   setSpeech(speech: { text: string; link?: string } | null): void {
@@ -431,8 +477,24 @@ export class PetOverlayElement {
     return this.gestureInteraction ?? this.baseInteraction();
   }
 
+  /** Resolve the current row to render. Order:
+   *   1. Active manifest action (set by beginAction)
+   *   2. Ambient choreography
+   *   3. Manifest stateMap routing the host state to a manifest action
+   *   4. The host state itself if it directly matches an action id
+   *   5. Fallback to preferredRowId for the standard interaction mapping
+   */
   private activeRowId(): string {
-    return this.ambientRowId ?? preferredRowId(this.computedInteraction());
+    if (this.actionMode) return this.actionMode.rowId;
+    if (this.ambientRowId) return this.ambientRowId;
+    const actions = this.active?.actions;
+    const sm = this.active?.stateMap;
+    if (sm && actions) {
+      const mapped = sm[this.hostState];
+      if (mapped && actions[mapped]) return actions[mapped].row;
+    }
+    if (actions && actions[this.hostState]) return actions[this.hostState].row;
+    return preferredRowId(this.computedInteraction());
   }
 
   private applyInteractionToSprite(): void {
@@ -631,6 +693,15 @@ export class PetOverlayElement {
   private applySpriteWrapperStyles(): void {
     const a = this.active;
     const animation = a && !a.atlas ? `ap-${a.animation} 3s ease-in-out infinite` : 'none';
+    // Manifest actions can request the sprite extend beyond its normal
+    // bounding box (e.g. SHORYUKEN extends well above the cell). Apply
+    // a uniform CSS scale anchored at the bottom-center so the feet stay
+    // pinned to the cell baseline while the head and fist grow upward.
+    const expandUp = this.actionMode?.expandUp ?? 0;
+    const expandDown = this.actionMode?.expandDown ?? 0;
+    const expandScale = expandUp || expandDown
+      ? 1 + Math.max(expandUp, expandDown) / this.size
+      : 1;
     this.spriteWrapper.style.cssText = [
       `width:${this.size}px`,
       `height:${this.size}px`,
@@ -650,6 +721,12 @@ export class PetOverlayElement {
       'align-items:center',
       'justify-content:center',
       `font-size:${Math.round(this.size * 0.55)}px`,
+      // Scale anchored at bottom-center so an enlarged action extends above
+      // the cell (toward the page) rather than down off-screen. transition
+      // softens the begin/end so the move doesn't snap.
+      `transform:scale(${expandScale})`,
+      `transform-origin:bottom center`,
+      `transition:transform 180ms cubic-bezier(.2,.6,.3,1)`,
     ].join(';');
   }
 

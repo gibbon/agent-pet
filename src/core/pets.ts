@@ -37,6 +37,8 @@ function resolveCustomPet(c: PetCustom): ResolvedPet {
     frames: clampFrames(c.frames),
     fps: clampFps(c.fps),
     atlas: sanitizeAtlas(c.atlas),
+    actions: c.actions,
+    stateMap: c.stateMap,
   };
 }
 

@@ -11,10 +11,11 @@ import type {
   ConfigureOptions,
   MountOptions,
   ObserveOptions,
+  PetActionName,
+  PetManifest,
   PlayOptions,
   SayOptions,
   WidgetEventName,
-  WidgetState,
 } from './api';
 
 /** Per-id default storageKey. The 'main' pet uses the legacy unsuffixed key
@@ -41,10 +42,11 @@ export function createRegistry(): AgentPetRegistry {
 
   const registry: AgentPetRegistry = {
     // ── Singleton convenience: forward to 'main' ─────────────────
-    setState: (s: WidgetState) => ensureMain().setState(s),
-    play: (a: WidgetState, o?: PlayOptions) => ensureMain().play(a, o),
+    setState: (s: PetActionName) => ensureMain().setState(s),
+    play: (a: PetActionName, o?: PlayOptions) => ensureMain().play(a, o),
     say: (t: string, o?: SayOptions) => ensureMain().say(t, o),
     configure: (o: ConfigureOptions) => ensureMain().configure(o),
+    loadManifest: (s: PetManifest | string) => ensureMain().loadManifest(s),
     observe: (o: ObserveOptions) => ensureMain().observe(o),
     on: (e: WidgetEventName, h: (...args: unknown[]) => void) => ensureMain().on(e, h),
     off: (e: WidgetEventName, h: (...args: unknown[]) => void) => ensureMain().off(e, h),

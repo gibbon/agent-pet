@@ -27,6 +27,13 @@ export interface PetCustom {
   frames?: number;
   fps?: number;
   atlas?: PetAtlasLayout;
+  /** Manifest-driven semantic actions. Action keys are arbitrary strings
+   *  (e.g. 'hadouken', 'shoryuken') that consumers invoke via play(name).
+   *  Schema lives in core/manifest.ts. */
+  actions?: Record<string, import('./manifest').ActionSpec>;
+  /** Remap default WidgetStates (idle, thinking, etc.) to action ids in
+   *  the actions map. */
+  stateMap?: import('./manifest').StateMap;
 }
 
 export interface PetConfig {
@@ -89,6 +96,8 @@ export interface ResolvedPet {
   frames?: number;
   fps?: number;
   atlas?: PetAtlasLayout;
+  actions?: Record<string, import('./manifest').ActionSpec>;
+  stateMap?: import('./manifest').StateMap;
 }
 
 // ── Interaction states ─────────────────────────────────────────────────

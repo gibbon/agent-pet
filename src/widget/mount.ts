@@ -5,11 +5,13 @@
 import { CODEX_ATLAS_LAYOUT, CODEX_ATLAS_ROWS_DEF } from '../core/atlas';
 import { defaultPetAdapter } from '../core/adapters/default';
 import { DEFAULT_PET_CONFIG, defaultCustomPet, preferredRowId } from '../core/pets';
+import { parsePetManifest, type PetManifest } from '../core/manifest';
 import { migratePetConfig, type PetConfig } from '../core/types';
-import type { AgentPetAPI, ConfigureOptions, MountOptions, ObserveOptions, PlayOptions, SayOptions, WidgetEventName, WidgetState } from './api';
+import type { AgentPetAPI, ConfigureOptions, MountOptions, ObserveOptions, PetActionName, PlayOptions, SayOptions, WidgetEventName, WidgetState } from './api';
 import { PetOverlayElement } from './overlay';
 import { SpeechQueue } from './queue';
 import { attachObservers } from './observer';
+import { spawnProjectile } from './projectile';
 
 // pet.css contents inlined at build time. Shadow DOM doesn't inherit
 // document.head styles, so we manually inject this <style> into each
@@ -60,9 +62,10 @@ export function createAgentPetAPI(): AgentPetAPI {
   };
 
   // Per-instance state
-  let hostState: WidgetState = 'idle';
-  let persistentState: WidgetState = 'idle';
+  let hostState: string = 'idle';
+  let persistentState: string = 'idle';
   let playRevertTimer: ReturnType<typeof setTimeout> | null = null;
+  let actionSpawnTimers: Array<ReturnType<typeof setTimeout>> = [];
 
   // ── Speech queue → overlay ─────────────────────────────────────
   queue.subscribe(() => {
@@ -77,11 +80,16 @@ export function createAgentPetAPI(): AgentPetAPI {
     overlay.setConfig(loadConfig(storageKey));
   };
 
-  const applyState = (state: WidgetState): void => {
+  const applyState = (state: string): void => {
     hostState = state;
     overlay?.setHostState(state);
     const fns = listeners.get('stateChange');
     if (fns) for (const fn of fns) fn(state);
+  };
+
+  const clearActionSpawnTimers = (): void => {
+    for (const t of actionSpawnTimers) clearTimeout(t);
+    actionSpawnTimers = [];
   };
 
   const estimateLoopMs = (action: WidgetState): number => {
@@ -148,6 +156,7 @@ export function createAgentPetAPI(): AgentPetAPI {
     }
     if (detachObservers) { detachObservers(); detachObservers = null; }
     if (playRevertTimer) { clearTimeout(playRevertTimer); playRevertTimer = null; }
+    clearActionSpawnTimers();
     overlay?.destroy();
     overlay = null;
     if (host?.parentNode) host.parentNode.removeChild(host);
@@ -158,15 +167,53 @@ export function createAgentPetAPI(): AgentPetAPI {
   // ── Public API ────────────────────────────────────────────────
 
   const api: AgentPetAPI = {
-    setState(state: WidgetState) {
+    setState(state: PetActionName) {
       if (playRevertTimer) { clearTimeout(playRevertTimer); playRevertTimer = null; }
+      clearActionSpawnTimers();
+      overlay?.endAction();
       persistentState = state;
       applyState(state);
     },
-    play(action: WidgetState, opts?: PlayOptions) {
+    play(action: PetActionName, opts?: PlayOptions) {
       if (playRevertTimer) clearTimeout(playRevertTimer);
+      clearActionSpawnTimers();
+      overlay?.endAction();
+      // Look up a manifest action: if found, drive the row + spawns + expand
+      // directly. Otherwise fall back to the WidgetState code path.
+      const cfg = loadConfig(storageKey);
+      const actionSpec = cfg.custom.actions?.[action];
+      if (actionSpec && overlay) {
+        const fps = actionSpec.fps ?? overlay.rowFps(actionSpec.row) ?? 6;
+        const frames = overlay.rowFrames(actionSpec.row) ?? 1;
+        const loops = Math.max(1, actionSpec.loops ?? opts?.loops ?? 1);
+        const durationMs = opts?.durationMs ?? Math.round((frames * loops * 1000) / fps);
+        overlay.beginAction(actionSpec.row, {
+          expandUp: actionSpec.expandUp,
+          expandDown: actionSpec.expandDown,
+        });
+        const fns = listeners.get('stateChange');
+        if (fns) for (const fn of fns) fn(action);
+        if (actionSpec.say) queue.push(actionSpec.say, {});
+        // Schedule projectile spawns relative to the action's frame timing.
+        if (actionSpec.spawn) {
+          for (const proj of actionSpec.spawn) {
+            const delay = Math.max(0, Math.round((proj.atFrame * 1000) / fps));
+            actionSpawnTimers.push(setTimeout(() => {
+              spawnProjectile(overlay!, proj, cfg.custom.atlas, cfg.custom.imageUrl);
+            }, delay));
+          }
+        }
+        playRevertTimer = setTimeout(() => {
+          playRevertTimer = null;
+          actionSpawnTimers = [];
+          overlay?.endAction();
+          applyState(persistentState);
+        }, durationMs);
+        return;
+      }
+      // Built-in WidgetState path
       const loops = Math.max(1, opts?.loops ?? 1);
-      const durationMs = opts?.durationMs ?? estimateLoopMs(action) * loops;
+      const durationMs = opts?.durationMs ?? estimateLoopMs(action as WidgetState) * loops;
       applyState(action);
       playRevertTimer = setTimeout(() => {
         playRevertTimer = null;
@@ -183,6 +230,7 @@ export function createAgentPetAPI(): AgentPetAPI {
         const current: PetConfig = raw ? JSON.parse(raw) : { ...DEFAULT_PET_CONFIG };
         const customPatch: Record<string, unknown> = {
           name: opts.name, glyph: opts.glyph, accent: opts.accent, imageUrl: opts.imageUrl,
+          actions: opts.actions, stateMap: opts.stateMap,
         };
         if (opts.atlas) customPatch.atlas = opts.atlas;
         else if (opts.useCodexAtlas) customPatch.atlas = CODEX_ATLAS_LAYOUT;
@@ -207,6 +255,30 @@ export function createAgentPetAPI(): AgentPetAPI {
         chatPlaceholder = opts.chatPlaceholder;
         overlay?.setChat(chatEnabled, chatPlaceholder);
       }
+    },
+    async loadManifest(source: PetManifest | string) {
+      let manifest: PetManifest;
+      let baseUrl: string | undefined;
+      if (typeof source === 'string') {
+        baseUrl = source;
+        const resp = await fetch(source);
+        if (!resp.ok) throw new Error(`Failed to load manifest from ${source}: HTTP ${resp.status}`);
+        manifest = parsePetManifest(await resp.json());
+      } else {
+        manifest = parsePetManifest(source);
+      }
+      // Resolve spritesheet URL relative to the manifest URL.
+      const spritesheet = baseUrl
+        ? new URL(manifest.spritesheet, new URL(baseUrl, typeof window !== 'undefined' ? window.location.href : 'http://x/')).toString()
+        : manifest.spritesheet;
+      api.configure({
+        name: manifest.displayName ?? manifest.id,
+        accent: manifest.accent,
+        imageUrl: spritesheet,
+        atlas: manifest.atlas,
+        actions: manifest.actions,
+        stateMap: manifest.stateMap,
+      });
     },
     observe(opts: ObserveOptions) {
       if (detachObservers) { detachObservers(); detachObservers = null; }

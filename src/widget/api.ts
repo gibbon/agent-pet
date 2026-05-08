@@ -1,7 +1,12 @@
 import type { PetAtlasLayout } from '../core/types';
+import type { ActionSpec, PetManifest, StateMap } from '../core/manifest';
 
 export type { PetAtlasLayout, PetAtlasRowDef } from '../core/types';
+export type { ActionSpec, ProjectileSpec, PetManifest, StateMap } from '../core/manifest';
 
+/** Standard widget states (the original 9). Pets without a manifest use only
+ *  these. Pets with a manifest can also accept any action name registered
+ *  in the manifest's `actions` map. */
 export type WidgetState =
   | 'idle'        // idle row
   | 'thinking'    // review row
@@ -12,6 +17,12 @@ export type WidgetState =
   | 'greeting'    // waving row — hello / welcome
   | 'waiting'     // waiting row — explicit pause / awaiting input
   | 'leaving';    // running-left row — going away / wrapping up
+
+/** A state name accepted by setState/play. Either a built-in WidgetState or
+ *  any string — manifests validate at runtime. The string fallback lets
+ *  TypeScript users invoke `play('hadouken')` without the type system
+ *  knowing about manifest contents. */
+export type PetActionName = WidgetState | (string & {});
 
 export type WidgetEventName = 'stateChange' | 'userMessage' | 'visibility';
 
@@ -42,6 +53,15 @@ export interface ConfigureOptions {
    *  format. Each `rowsDef` entry maps a row index to a named row id (e.g.
    *  'idle', 'walking') with its frame count and FPS. */
   atlas?: PetAtlasLayout;
+  /** Manifest-driven semantic actions. Action keys are arbitrary names
+   *  ('hadouken', 'shoryuken') that consumers invoke via play(name). Each
+   *  action declares its row, optional projectile spawns, and optional
+   *  vertical expansion when the move extends beyond the cell bounds. */
+  actions?: Record<string, ActionSpec>;
+  /** Remap the 9 default WidgetStates to action ids in the actions map.
+   *  Lets a manifest re-route the standard states without consumers
+   *  changing their setState() calls. */
+  stateMap?: StateMap;
   /** Show a chat input under the speech bubble. On Enter, the input fires a
    *  `userMessage` event with the typed text. Consumers wire this to their
    *  own backend (LLM, helpdesk, custom) and call `say(reply)` to display
@@ -71,13 +91,18 @@ export interface ObserveOptions {
 }
 
 export interface AgentPetAPI {
-  setState(state: WidgetState): void;
+  setState(state: PetActionName): void;
   /** Play a one-shot action, then return to the previous persistent state.
    *  Use for transient feedback (e.g. wave on submit, jump on success) that
-   *  shouldn't replace the pet's underlying mood. */
-  play(action: WidgetState, opts?: PlayOptions): void;
+   *  shouldn't replace the pet's underlying mood. Action can be either a
+   *  built-in WidgetState or any name registered in a loaded manifest. */
+  play(action: PetActionName, opts?: PlayOptions): void;
   say(text: string, opts?: SayOptions): void;
   configure(opts: ConfigureOptions): void;
+  /** Load a pet manifest (URL or inline object) — applies the manifest's
+   *  imageUrl, atlas, actions and stateMap in one call. The recommended
+   *  way to bundle a custom pet with semantic actions. */
+  loadManifest(source: PetManifest | string): Promise<void>;
   /** Wire DOM events (form submit, page load, external links, etc.) to pet
    *  state changes. Replaces any previous observe() call — pass {} to disable
    *  all observers, or omit individual fields to disable just those. */

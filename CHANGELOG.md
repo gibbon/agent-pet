@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.9.0 — Pet manifests: semantic actions + projectiles
+
+Adds a manifest format that bundles a custom atlas with named actions and optional projectile spawns. Pets that ship a manifest can declare moves like `hadouken` (which fires a fireball that flies across the screen) or `shoryuken` (which extends the sprite well above its cell), invokable via `play('hadouken')` rather than being constrained to the original 9 `WidgetState`s and the Codex 8×9 layout.
+
+- **`AgentPet.loadManifest(url|object)`** — fetches/parses a `pet.json`, applies its `imageUrl`, `atlas`, `actions`, and `stateMap` in one call. Manifest schema: `{ id, displayName, accent, spritesheet, atlas, actions, stateMap }`.
+- **`actions`** — arbitrary action ids each with `{ row, loops, fps?, expandUp?, expandDown?, spawn?, say? }`. `play(name)` invokes them; `setState(name)` works too if the action is referenced by `stateMap`.
+- **`stateMap`** — remaps the original 9 `WidgetState`s (`thinking`, `building`, …) to manifest action ids, so consumer code that does `setState('thinking')` keeps working but plays whatever the manifest defines.
+- **`spawn` / projectiles** — each spawn entry creates a fixed-positioned DOM element at the pet's anchor that translates `dx/dy` over `durationMs` while looping its own atlas row, then removes itself. Lives outside the pet's bounding box so it can fly across the whole page.
+- **`expandUp` / `expandDown`** — temporarily scale the sprite anchored at bottom-center for moves that extend beyond the cell (e.g. SHORYUKEN). Reverts when the action ends.
+
+Backwards compatible. Pets without a manifest behave exactly as before. `setState`/`play` now accept any `string`, so manifest action names work without the type system having to know about them.
+
+Bundle: IIFE 36.5 KB raw / 11.0 KB gzip (under the 15 KB ceiling).
+
 ## v0.8.7 — Fix: sprite invisible on first mount with `data-image-url`
 
 Patch release. Mounting via `<script data-image-url="…" data-use-codex-atlas>` (or any path that supplied `imageUrl` / `atlas` / `useCodexAtlas` to the initial `mount()`) wrote the new config to `localStorage` correctly but the overlay never received it, so `resolveActivePet()` returned `null` and the sprite stayed in `'empty'` mode — the host element mounted but rendered nothing.
