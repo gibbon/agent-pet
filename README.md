@@ -60,7 +60,7 @@ There's also a hosted [**playground page**](https://agent-pet.pages.dev/playgrou
 - **Draggable + persistent** — position and pet selection persist via `localStorage`.
 - **9 distinct animations** — drives all rows of the Codex atlas spec (idle, thinking, building, delegating, leaving, greeting, waiting, success, error).
 - **Speech bubbles** — `AgentPet.say(text, { link })` for inline status with optional click-through.
-- **Versioned URLs** — pin to `/v0.7/` for stability; immutable + 1-year cache.
+- **Versioned URLs** — pin to `/v0.8/` for stability; immutable + 1-year cache.
 - **SRI-pinnable** — SHA-384 hashes published per release.
 - **Versatile mounting** — auto-mount or programmatic; mount into any element via `target`.
 
@@ -496,15 +496,17 @@ The CDN ships the bundle at multiple paths so old pins keep working forever:
 | Path | Cache | Stability |
 |---|---|---|
 | `/agent-pet-widget.iife.js` | 5 minutes | "Latest" — may break on new releases |
-| `/v0.7/agent-pet-widget.iife.js` | 1 year, immutable | Pluggable provider registry, current pin |
+| `/v0.8/agent-pet-widget.iife.js` | 1 year, immutable | Hide-to-dock + opt-in chat input + localStorage migration, current pin |
+| `/v0.7/agent-pet-widget.iife.js` | 1 year, immutable | Pluggable provider registry |
 | `/v0.6/agent-pet-widget.iife.js` | 1 year, immutable | Hardcoded codex-pets.net URL — broken since their 2026-05-08 storage migration |
 | `/v0.3/agent-pet-widget.iife.js` | 1 year, immutable | First multi-pet registry build |
 | `/v0.2/agent-pet-widget.iife.js` | 1 year, immutable | First vanilla-DOM build (no multi-pet API) |
 | `/v0.1/agent-pet-widget.iife.js` | 1 year, immutable | Original Preact-bundled build |
 
-**Pin to `/v0.7/` in production.** Pre-1.0, every minor release (`0.1` → `0.2`) may include breaking changes; once the API stabilizes at 1.0 the version bucket becomes major-only (`/v1/`, `/v2/`).
+**Pin to `/v0.8/` in production.** Pre-1.0, every minor release (`0.1` → `0.2`) may include breaking changes; once the API stabilizes at 1.0 the version bucket becomes major-only (`/v1/`, `/v2/`).
 
 Breaking-change history:
+- **v0.8** — additive: `hide()`/`show()`/`toggle()` API, `data-chat="true"` opt-in input, `userMessage` + `visibility` events, draggable dock with active-pet thumbnail. localStorage configs are auto-migrated from v0.6+ pre-codex-pets.net hosts. Drag works on touch devices.
 - **v0.7** — pluggable provider registry; `data-codex-pet` is now resolved via the registered codex provider. Hardcoded URL removed.
 - **v0.6.1** — fix for codex-pets.net storage migration (paper-over before v0.7).
 - **v0.3** — multi-pet registry API (additive but `window.AgentPet`'s shape changed for TypeScript users).
@@ -514,7 +516,7 @@ To discover what "latest" currently resolves to:
 
 ```bash
 curl -s https://agent-pet.pages.dev/version.json
-# {"version":"0.7.0","bucket":"v0.7","latestPath":"/"}
+# {"version":"0.8.3","bucket":"v0.8","latestPath":"/"}
 ```
 
 ## Subresource Integrity (SRI)
@@ -522,12 +524,12 @@ curl -s https://agent-pet.pages.dev/version.json
 Pin the bundle to a hash so browsers reject substituted code if the CDN is compromised:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.8/agent-pet-widget.iife.js"
         integrity="sha384-..."
         crossorigin="anonymous"></script>
 ```
 
-Each release publishes hashes at `/v0.7/SRI.json`:
+Each release publishes hashes at `/v0.8/SRI.json`:
 
 ```json
 {
