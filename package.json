@@ -1,7 +1,7 @@
 {
   "name": "agent-pet",
   "version": "0.8.5",
-  "description": "Tiny animated companion-pet widget for any web app. Self-hosted, no backend, ~7 KB gzip vanilla DOM. Drives 9 distinct atlas animations from a simple JS API.",
+  "description": "Tiny animated companion-pet widget for any web app. Self-hosted, no backend, ~10 KB gzip vanilla DOM. Drives 9 distinct atlas animations from a simple JS API.",
   "keywords": [
     "widget",
     "pet",

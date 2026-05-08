@@ -1,6 +1,6 @@
 # agent-pet
 
-> A tiny animated companion-pet widget for any web app. Self-hostable, no backend, ~7 KB gzip. Vanilla DOM — no React, no Preact, no framework runtime.
+> A tiny animated companion-pet widget for any web app. Self-hostable, no backend, ~10 KB gzip. Vanilla DOM — no React, no Preact, no framework runtime.
 
 [![npm version](https://img.shields.io/npm/v/agent-pet?color=cb3837)](https://www.npmjs.com/package/agent-pet)
 [![License](https://img.shields.io/npm/l/agent-pet?color=blue)](LICENSE)
@@ -26,7 +26,7 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });
 The fastest path — pick a pet from [codex-pets.net](https://codex-pets.net/) and reference it by id:
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.8/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
@@ -44,7 +44,7 @@ Open a blank [CodePen](https://codepen.io/pen/), [JSFiddle](https://jsfiddle.net
   <button onclick="AgentPet.setState('building')">building</button>
   <button onclick="AgentPet.setState('success')">success</button>
   <button onclick="AgentPet.say('hello!', {ttl:4000})">say hello</button>
-  <script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
+  <script src="https://agent-pet.pages.dev/v0.8/agent-pet-widget.iife.js"
           data-codex-pet="homelander"></script>
 </body>
 </html>
@@ -57,7 +57,7 @@ For a hosted, more complete demo (state buttons, pet catalog with thumbnails, hi
 ## Features
 
 - **Zero backend** — pure static JS. The widget makes no network calls beyond the one you point it at.
-- **Self-contained** — no peer dependencies, no framework runtime. Pure vanilla DOM; ~7 KB gzip total.
+- **Self-contained** — no peer dependencies, no framework runtime. Pure vanilla DOM; ~10 KB gzip total.
 - **Shadow DOM isolation** — won't conflict with host page styles.
 - **Draggable + persistent** — position and pet selection persist via `localStorage`.
 - **9 distinct animations** — drives all rows of the Codex atlas spec (idle, thinking, building, delegating, leaving, greeting, waiting, success, error).
@@ -75,21 +75,21 @@ For a hosted, more complete demo (state buttons, pet catalog with thumbnails, hi
 **Minimal — emoji glyph, zero config:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.8/agent-pet-widget.iife.js"
         data-name="Rex" data-glyph="🦖" data-accent="#e74c3c"></script>
 ```
 
 **Animated pet from codex-pets.net by id:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.8/agent-pet-widget.iife.js"
         data-codex-pet="homelander"></script>
 ```
 
 **Your own Codex-format spritesheet:**
 
 ```html
-<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.8/agent-pet-widget.iife.js"
         data-image-url="https://your-cdn.example/your-sprite.webp"
         data-use-codex-atlas></script>
 ```
@@ -101,7 +101,7 @@ We don't bake a default spritesheet into the bundle — they're 80–150 KB each
 The bundle is plain static JS — download it, serve it from your own host:
 
 ```bash
-curl -O https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js
+curl -O https://agent-pet.pages.dev/v0.8/agent-pet-widget.iife.js
 ```
 
 Serve via your CDN, nginx, S3, GitHub Pages — anywhere. Then:
@@ -159,7 +159,7 @@ function App({ appState }) {
 
 #### Any other framework — `agent-pet/widget`
 
-A self-contained ES module that exports `createAgentPetAPI()` plus `createRegistry()` for multi-pet apps. Pure vanilla DOM (~7.7 KB gzip), no framework runtime. Your bundler (Vite/webpack/Rollup) tree-shakes and inlines it like any other dep — no manual copy step.
+A self-contained ES module that exports `createAgentPetAPI()` plus `createRegistry()` for multi-pet apps. Pure vanilla DOM (~11 KB gzip), no framework runtime. Your bundler (Vite/webpack/Rollup) tree-shakes and inlines it like any other dep — no manual copy step.
 
 ```ts
 import { createAgentPetAPI } from 'agent-pet/widget';
@@ -506,7 +506,7 @@ To discover what "latest" currently resolves to:
 
 ```bash
 curl -s https://agent-pet.pages.dev/version.json
-# {"version":"0.8.3","bucket":"v0.8","latestPath":"/"}
+# {"version":"0.8.5","bucket":"v0.8","latestPath":"/"}
 ```
 
 ## Subresource Integrity (SRI)
@@ -645,7 +645,7 @@ AgentPet.providers.register({
 
 ```html
 <!-- Step 4: reference by id, same as any registered provider -->
-<script src="https://agent-pet.pages.dev/v0.7/agent-pet-widget.iife.js"
+<script src="https://agent-pet.pages.dev/v0.8/agent-pet-widget.iife.js"
         data-local-pet="yukina"></script>
 ```
 
