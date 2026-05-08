@@ -7,6 +7,8 @@
 [![Bundle size](https://img.shields.io/bundlephobia/minzip/agent-pet?label=gzip)](https://bundlephobia.com/package/agent-pet)
 [![Live demo](https://img.shields.io/badge/demo-agent--pet.pages.dev-7eb8da)](https://agent-pet.pages.dev)
 
+[![agent-pet running on the demo site, showing the install snippet and the animated pet bottom-right](docs/hero.png)](https://agent-pet.pages.dev)
+
 Drop a single `<script>` tag, get a draggable animated pet bottom-right of any page. Drive it from your app:
 
 ```js
