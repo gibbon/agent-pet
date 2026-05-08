@@ -111,6 +111,14 @@ export class PetOverlayElement {
     moved: boolean;
     direction: 'right' | 'left' | 'up' | 'down' | null;
   } | null = null;
+  private dockDragRef: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startRight: number;
+    startBottom: number;
+    moved: boolean;
+  } | null = null;
 
   constructor(parent: ParentNode, opts: OverlayOptions) {
     this.size = opts.size ?? 96;
@@ -567,37 +575,112 @@ export class PetOverlayElement {
   private renderDock(): void {
     if (this.dock) return;
     const accent = this.active?.accent ?? '#7eb8da';
-    const glyph = '🐧';
     const dockSize = Math.max(36, Math.round(this.size * 0.45));
+    const imageUrl = this.active?.imageUrl;
+    const atlas = this.active?.atlas;
+
+    // Use the pet's sprite thumbnail when we have one — same first-cell crop
+    // technique as the catalog buttons. Falls back to the pet's glyph (or 🐾)
+    // when the active pet has no image configured.
+    const bgStyles: string[] = [];
+    let textGlyph = '';
+    if (imageUrl && atlas) {
+      bgStyles.push(
+        `background-image:url(${imageUrl})`,
+        `background-size:${atlas.cols * 100}% ${atlas.rows * 100}%`,
+        'background-position:0% 0%',
+        'background-repeat:no-repeat',
+        'image-rendering:pixelated',
+      );
+    } else if (imageUrl) {
+      bgStyles.push(
+        `background-image:url(${imageUrl})`,
+        'background-size:cover',
+        'background-position:center',
+        'background-repeat:no-repeat',
+      );
+    } else {
+      textGlyph = this.active?.glyph ?? '🐾';
+    }
+
     const dock = document.createElement('button');
     dock.type = 'button';
     dock.className = 'ap-dock';
     dock.setAttribute('aria-label', this.active ? `Show ${this.active.name}` : 'Show pet');
     dock.title = this.active ? `Show ${this.active.name}` : 'Show pet';
-    dock.textContent = glyph;
+    if (textGlyph) dock.textContent = textGlyph;
     dock.style.cssText = [
       `width:${dockSize}px`,
       `height:${dockSize}px`,
       'border-radius:50%',
-      `background:var(--ap-bubble-bg, #1a1a1a)`,
+      'background-color:var(--ap-bubble-bg, #1a1a1a)',
+      ...bgStyles,
       `border:1.5px solid ${accent}`,
       'color:inherit',
       `font-size:${Math.round(dockSize * 0.5)}px`,
       'display:flex',
       'align-items:center',
       'justify-content:center',
-      'cursor:pointer',
+      'cursor:grab',
       'pointer-events:auto',
       'padding:0',
       `box-shadow:0 2px 12px ${accent}33`,
       'transition:transform 120ms ease',
+      'touch-action:none',
+      'user-select:none',
+      '-webkit-user-select:none',
+      '-webkit-touch-callout:none',
     ].join(';');
-    dock.addEventListener('pointerenter', () => { dock.style.transform = 'scale(1.08)'; });
+    dock.addEventListener('pointerdown', this.onDockPointerDown);
+    dock.addEventListener('pointermove', this.onDockPointerMove);
+    dock.addEventListener('pointerup', this.onDockPointerUp);
+    dock.addEventListener('pointerenter', (e) => {
+      if (e.pointerType === 'mouse') dock.style.transform = 'scale(1.08)';
+    });
     dock.addEventListener('pointerleave', () => { dock.style.transform = ''; });
-    dock.addEventListener('click', () => { this.setHidden(false); });
     this.root.appendChild(dock);
     this.dock = dock;
   }
+
+  // ── Dock drag handling ────────────────────────────────────────────
+
+  private onDockPointerDown = (e: PointerEvent): void => {
+    if (e.button !== 0) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    this.dockDragRef = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startRight: this.position.right,
+      startBottom: this.position.bottom,
+      moved: false,
+    };
+  };
+
+  private onDockPointerMove = (e: PointerEvent): void => {
+    const drag = this.dockDragRef;
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+    drag.moved = true;
+    this.position = {
+      right: Math.max(8, Math.min(window.innerWidth - this.size - 24, drag.startRight - dx)),
+      bottom: Math.max(8, Math.min(window.innerHeight - this.size - 24, drag.startBottom - dy)),
+    };
+    this.applyOverlayStyles();
+    savePosition(this.positionKey, this.position);
+    if (this.dock) this.dock.style.cursor = 'grabbing';
+  };
+
+  private onDockPointerUp = (e: PointerEvent): void => {
+    const drag = this.dockDragRef;
+    this.dockDragRef = null;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (this.dock) this.dock.style.cursor = 'grab';
+    // Tap (no drag) restores the pet; drag just repositions.
+    if (drag && !drag.moved) this.setHidden(false);
+  };
 
   private removeDock(): void {
     if (!this.dock) return;

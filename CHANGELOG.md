@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.3 — Draggable dock + pet thumbnail in dock
+
+The minimized dock is now draggable (touch + mouse), the same way as the main sprite. Tapping the dock still restores the pet; only a drag-then-release moves it. Position is saved to the same `${storageKey}:position` slot as the sprite, so when the pet returns it appears wherever the dock was last placed.
+
+The dock also shows the active pet's first sprite cell instead of a generic 🐧 — same first-cell-of-spritesheet crop the catalog buttons use, so visitors can see at a glance which pet is hidden. Falls back to the pet's emoji glyph if no image is configured.
+
 ## v0.8.2 — Make pet draggable on mobile
 
 The drag implementation already used pointer events (which support touch in spec), but mobile browsers were consuming the touch as a scroll gesture before our handlers saw it. Adding `touch-action: none` (plus `-webkit-touch-callout: none` to suppress the long-press preview on iOS) to the sprite restores drag on touch devices. Scope is limited to the sprite — the rest of the page scrolls and zooms normally.
