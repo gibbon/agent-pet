@@ -30,10 +30,52 @@ export interface PetCustom {
 }
 
 export interface PetConfig {
+  schemaVersion?: number;
   adopted: boolean;
   enabled: boolean;
   petId: string;
   custom: PetCustom;
+}
+
+export const CONFIG_SCHEMA_VERSION = 2;
+
+// One-shot migrations applied to PetCustom on load. Runs at most once per
+// record because the migrated config is rewritten with the current
+// schemaVersion. Each entry corresponds to a code change that already
+// shipped but left stale URLs in users' localStorage.
+const PET_CUSTOM_MIGRATIONS: Array<{ to: number; apply: (c: PetCustom) => PetCustom }> = [
+  // v1 → v2 (2026-05-08): codex-pets.net moved spritesheet storage off
+  // Supabase. Rewrite stale imageUrl hosts so returning visitors don't
+  // keep loading from the dead bucket. See commit 84c6c32 / v0.6.1.
+  {
+    to: 2,
+    apply: (c) => {
+      const dead = 'ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets';
+      const fresh = 'codex-pets.net/assets/pets';
+      if (!c.imageUrl?.includes(dead)) return c;
+      return { ...c, imageUrl: c.imageUrl.replace(dead, fresh) };
+    },
+  },
+];
+
+export function migratePetCustom(custom: PetCustom, fromVersion = 1): PetCustom {
+  let result = custom;
+  for (const m of PET_CUSTOM_MIGRATIONS) {
+    if (m.to <= fromVersion) continue;
+    result = m.apply(result);
+  }
+  return result;
+}
+
+export function migratePetConfig(cfg: PetConfig): { cfg: PetConfig; changed: boolean } {
+  const fromVersion = cfg.schemaVersion ?? 1;
+  if (fromVersion >= CONFIG_SCHEMA_VERSION) return { cfg, changed: false };
+  const next: PetConfig = {
+    ...cfg,
+    schemaVersion: CONFIG_SCHEMA_VERSION,
+    custom: migratePetCustom(cfg.custom, fromVersion),
+  };
+  return { cfg: next, changed: true };
 }
 
 export interface ResolvedPet {
@@ -118,7 +160,9 @@ export class LocalStoragePetStore implements PetStore {
     try {
       const raw = window.localStorage.getItem(this.key);
       if (!raw) return null;
-      return JSON.parse(raw) as PetConfig;
+      const { cfg, changed } = migratePetConfig(JSON.parse(raw) as PetConfig);
+      if (changed) await this.save(cfg);
+      return cfg;
     } catch {
       return null;
     }
@@ -149,8 +193,18 @@ const LIBRARY_KEY = 'agent-pet:library';
 export class LocalStoragePetLibrary {
   load(): PetLibraryEntry[] {
     if (typeof window === 'undefined') return [];
-    try { return JSON.parse(window.localStorage.getItem(LIBRARY_KEY) ?? '[]') as PetLibraryEntry[]; }
-    catch { return []; }
+    try {
+      const entries = JSON.parse(window.localStorage.getItem(LIBRARY_KEY) ?? '[]') as PetLibraryEntry[];
+      let dirty = false;
+      const next = entries.map(e => {
+        const migrated = migratePetCustom(e.custom);
+        if (migrated === e.custom) return e;
+        dirty = true;
+        return { ...e, custom: migrated };
+      });
+      if (dirty) this.save(next);
+      return next;
+    } catch { return []; }
   }
   save(entries: PetLibraryEntry[]): void {
     if (typeof window === 'undefined') return;

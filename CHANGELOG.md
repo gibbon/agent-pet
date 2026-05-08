@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.7.1 — localStorage migration for v0.6.1 supabase URL fix
+
+The v0.6.1 source fix didn't help returning visitors: their `agent-pet:config` localStorage still held a `custom.imageUrl` pointing at the dead supabase host, and the demo page only seeds a fresh URL when localStorage is empty.
+
+This release adds a one-shot migration that runs on every config/library load: if `imageUrl` contains `ihzwckyzfcuktrljwpha.supabase.co/storage/v1/object/public/pets`, it is rewritten to `codex-pets.net/assets/pets` and the migrated record is saved back. A new `schemaVersion` field on `PetConfig` (currently `2`) ensures the migration runs at most once per config.
+
+Migration is applied in `LocalStoragePetStore.load()`, `LocalStoragePetLibrary.load()`, and the IIFE widget's internal `loadConfig()`. New exports from `agent-pet`: `migratePetConfig`, `migratePetCustom`, `CONFIG_SCHEMA_VERSION`.
+
 ## v0.7.0 — Pluggable pet source providers
 
 codex-pets.net is no longer hardcoded. Pet sources are now registered providers, so the next time codex-pets.net rolls their URL pattern (or any other catalog moves), the fix is configuration, not a release.

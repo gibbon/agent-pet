@@ -5,7 +5,7 @@
 import { CODEX_ATLAS_LAYOUT, CODEX_ATLAS_ROWS_DEF } from '../core/atlas';
 import { defaultPetAdapter } from '../core/adapters/default';
 import { DEFAULT_PET_CONFIG, defaultCustomPet, preferredRowId } from '../core/pets';
-import type { PetConfig } from '../core/types';
+import { migratePetConfig, type PetConfig } from '../core/types';
 import type { AgentPetAPI, ConfigureOptions, MountOptions, ObserveOptions, PlayOptions, SayOptions, WidgetEventName, WidgetState } from './api';
 import { PetOverlayElement } from './overlay';
 import { SpeechQueue } from './queue';
@@ -24,7 +24,11 @@ function loadConfig(key: string): PetConfig {
   try {
     const raw = window.localStorage.getItem(key);
     if (!raw) return { ...DEFAULT_PET_CONFIG };
-    return JSON.parse(raw) as PetConfig;
+    const { cfg, changed } = migratePetConfig(JSON.parse(raw) as PetConfig);
+    if (changed) {
+      try { window.localStorage.setItem(key, JSON.stringify(cfg)); } catch { /* ignore */ }
+    }
+    return cfg;
   } catch {
     return { ...DEFAULT_PET_CONFIG };
   }
