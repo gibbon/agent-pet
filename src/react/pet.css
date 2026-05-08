@@ -34,6 +34,19 @@
   to   { background-position-x: 100%; }
 }
 
+/* Manifest action jump arc — translateY follows a parabola peaking at
+ * --ap-jump-peak (a negative px value). Used by ActionSpec.jumpHeight
+ * so a SHORYUKEN actually leaves the ground. The keyframe samples the
+ * arc at quarter intervals so the peak is held for ~25% of the duration
+ * (roughly matches a real jump's hang time at apex). */
+@keyframes ap-jump-arc {
+  0%   { transform: translateY(0); }
+  25%  { transform: translateY(calc(var(--ap-jump-peak, -64px) * 0.75)); }
+  50%  { transform: translateY(var(--ap-jump-peak, -64px)); }
+  75%  { transform: translateY(calc(var(--ap-jump-peak, -64px) * 0.75)); }
+  100% { transform: translateY(0); }
+}
+
 /* Overlay anchor — fixed position set inline via React */
 .ap-overlay {
   pointer-events: none;

@@ -190,6 +190,8 @@ export function createAgentPetAPI(): AgentPetAPI {
         overlay.beginAction(actionSpec.row, {
           expandUp: actionSpec.expandUp,
           expandDown: actionSpec.expandDown,
+          jumpHeight: actionSpec.jumpHeight,
+          durationMs,
         });
         const fns = listeners.get('stateChange');
         if (fns) for (const fn of fns) fn(action);

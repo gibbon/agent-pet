@@ -229,7 +229,7 @@ export class PetOverlayElement {
   private ambientRowId: string | null = null;
   /** Set by beginAction() to override the row resolution while a manifest
    *  action is playing. Cleared by endAction(). */
-  private actionMode: { rowId: string; expandUp?: number; expandDown?: number } | null = null;
+  private actionMode: { rowId: string; expandUp?: number; expandDown?: number; jumpHeight?: number; durationMs?: number } | null = null;
 
   // Timers / refs
   private waitingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -386,8 +386,17 @@ export class PetOverlayElement {
   /** Override the row currently being played, used by play() when a manifest
    *  action wants a specific row (and optional vertical expansion) regardless
    *  of the standard interaction-→-row mapping. Pair with endAction() to revert. */
-  beginAction(rowId: string, opts: { expandUp?: number; expandDown?: number } = {}): void {
-    this.actionMode = { rowId, expandUp: opts.expandUp, expandDown: opts.expandDown };
+  beginAction(
+    rowId: string,
+    opts: { expandUp?: number; expandDown?: number; jumpHeight?: number; durationMs?: number } = {},
+  ): void {
+    this.actionMode = {
+      rowId,
+      expandUp: opts.expandUp,
+      expandDown: opts.expandDown,
+      jumpHeight: opts.jumpHeight,
+      durationMs: opts.durationMs,
+    };
     this.clearAmbient();
     this.applySpriteWrapperStyles();
     this.applyInteractionToSprite();
@@ -702,6 +711,14 @@ export class PetOverlayElement {
     const expandScale = expandUp || expandDown
       ? 1 + Math.max(expandUp, expandDown) / this.size
       : 1;
+    const jumpHeight = this.actionMode?.jumpHeight ?? 0;
+    const jumpDuration = this.actionMode?.durationMs ?? 0;
+    // CSS animation for parabolic jumps. Picks ap-jump-arc keyframes (defined
+    // in pet.css) and feeds the peak height via a custom property so the
+    // same keyframe rule serves any jump amplitude.
+    const jumpAnim = jumpHeight > 0 && jumpDuration > 0
+      ? `ap-jump-arc ${jumpDuration}ms cubic-bezier(.4,.05,.6,1) forwards`
+      : animation;
     this.spriteWrapper.style.cssText = [
       `width:${this.size}px`,
       `height:${this.size}px`,
@@ -716,7 +733,10 @@ export class PetOverlayElement {
       '-webkit-user-select:none',
       '-webkit-touch-callout:none',
       'border-radius:50%',
-      `animation:${animation}`,
+      `animation:${jumpAnim}`,
+      // Drives the parabola peak in the ap-jump-arc keyframe — negative
+      // because CSS Y is down-positive but we want to jump up.
+      jumpHeight > 0 ? `--ap-jump-peak:-${jumpHeight}px` : '',
       'display:flex',
       'align-items:center',
       'justify-content:center',
@@ -727,7 +747,7 @@ export class PetOverlayElement {
       `transform:scale(${expandScale})`,
       `transform-origin:bottom center`,
       `transition:transform 180ms cubic-bezier(.2,.6,.3,1)`,
-    ].join(';');
+    ].filter(Boolean).join(';');
   }
 
   // ── Hidden / dock ─────────────────────────────────────────────────

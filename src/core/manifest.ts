@@ -45,11 +45,16 @@ export interface ActionSpec {
   loops?: number;
   /** Override the row's playback fps for this action. */
   fps?: number;
-  /** Pixels the sprite container can grow upward during this action — used
-   *  for moves like SHORYUKEN where the sprite extends well above the cell.
-   *  Reverts when the action ends. */
+  /** Translate the sprite upward in a parabolic arc — the pet actually
+   *  leaves the ground for `peak` px and lands again over the action's
+   *  duration. Used by moves like SHORYUKEN where the sprite frames
+   *  show Ryu rising. Mutually exclusive with `expandUp` — pick one. */
+  jumpHeight?: number;
+  /** Scale the sprite container upward, anchored at bottom-center, so the
+   *  sprite extends above its cell without leaving the ground. Use when
+   *  the move is "tall" but the character isn't actually jumping. */
   expandUp?: number;
-  /** Same, downward (rare). */
+  /** Same scale concept, downward. Rare. */
   expandDown?: number;
   /** Projectiles spawned at specific frames during the action. */
   spawn?: ProjectileSpec[];
