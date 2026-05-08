@@ -52,7 +52,7 @@ Open a blank [CodePen](https://codepen.io/pen/), [JSFiddle](https://jsfiddle.net
 
 Save / Run — the pet appears bottom-right and reacts to the buttons. Or save it as `try.html` locally, double-click to open in a browser; no server needed.
 
-There's also a hosted [**playground page**](https://agent-pet.pages.dev/playground.html) — the same minimal example, hosted live. Right-click → "View Source" to copy the working HTML into your editor.
+For a hosted, more complete demo (state buttons, pet catalog with thumbnails, hide-to-dock, opt-in chat input) see [agent-pet.pages.dev](https://agent-pet.pages.dev) — right-click → "View Source" to copy the working HTML.
 
 ## Features
 
