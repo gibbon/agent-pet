@@ -44,8 +44,20 @@ export function createAgentPetAPI(): AgentPetAPI {
   let overlay: PetOverlayElement | null = null;
   let storageKey = 'agent-pet:config';
   let positionKey = 'agent-pet:position';
+  let hiddenKey = 'agent-pet:hidden';
   let configChangedHandler: (() => void) | null = null;
   let detachObservers: (() => void) | null = null;
+  let chatEnabled = false;
+  let chatPlaceholder: string | undefined;
+
+  const fireUserMessage = (text: string): void => {
+    const fns = listeners.get('userMessage');
+    if (fns) for (const fn of fns) fn(text);
+  };
+  const fireVisibility = (visible: boolean): void => {
+    const fns = listeners.get('visibility');
+    if (fns) for (const fn of fns) fn({ visible });
+  };
 
   // Per-instance state
   let hostState: WidgetState = 'idle';
@@ -90,7 +102,10 @@ export function createAgentPetAPI(): AgentPetAPI {
     if (opts.storageKey) {
       storageKey = opts.storageKey;
       positionKey = `${opts.storageKey}:position`;
+      hiddenKey = `${opts.storageKey}:hidden`;
     }
+    if (opts.chat !== undefined) chatEnabled = opts.chat;
+    if (opts.chatPlaceholder !== undefined) chatPlaceholder = opts.chatPlaceholder;
     const target = opts.target ?? document.body;
     host = document.createElement('div');
     host.setAttribute('data-agent-pet-host', '');
@@ -105,7 +120,10 @@ export function createAgentPetAPI(): AgentPetAPI {
 
     overlay = new PetOverlayElement(shadow, {
       positionKey,
+      hiddenKey,
       onDismissSpeech: () => queue.dismiss(),
+      onHide: () => fireVisibility(false),
+      onUserMessage: (text) => fireUserMessage(text),
     });
 
     // Apply any new config in opts (these write through to localStorage too).
@@ -115,6 +133,7 @@ export function createAgentPetAPI(): AgentPetAPI {
       reloadConfigFromStorage();
     }
     overlay.setHostState(hostState);
+    overlay.setChat(chatEnabled, chatPlaceholder);
 
     configChangedHandler = () => reloadConfigFromStorage();
     window.addEventListener(CONFIG_CHANGED_EVENT, configChangedHandler);
@@ -174,9 +193,18 @@ export function createAgentPetAPI(): AgentPetAPI {
         if (opts.storageKey) {
           storageKey = opts.storageKey;
           positionKey = `${opts.storageKey}:position`;
+          hiddenKey = `${opts.storageKey}:hidden`;
         }
         window.dispatchEvent(new CustomEvent(CONFIG_CHANGED_EVENT));
       } catch { /* localStorage unavailable */ }
+      if (opts.chat !== undefined) {
+        chatEnabled = opts.chat;
+        overlay?.setChat(chatEnabled, opts.chatPlaceholder ?? chatPlaceholder);
+      }
+      if (opts.chatPlaceholder !== undefined) {
+        chatPlaceholder = opts.chatPlaceholder;
+        overlay?.setChat(chatEnabled, chatPlaceholder);
+      }
     },
     observe(opts: ObserveOptions) {
       if (detachObservers) { detachObservers(); detachObservers = null; }
@@ -192,6 +220,20 @@ export function createAgentPetAPI(): AgentPetAPI {
     mount(opts: MountOptions = {}) { doMount(opts); },
     unmount() { doUnmount(); },
     get mounted() { return host !== null; },
+    hide() {
+      overlay?.setHidden(true);
+      fireVisibility(false);
+    },
+    show() {
+      overlay?.setHidden(false);
+      fireVisibility(true);
+    },
+    toggle() {
+      const next = !(overlay?.isHidden() ?? false);
+      overlay?.setHidden(next);
+      fireVisibility(!next);
+    },
+    get hidden() { return overlay?.isHidden() ?? false; },
   };
 
   return api;

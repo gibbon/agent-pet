@@ -13,7 +13,7 @@ export type WidgetState =
   | 'waiting'     // waiting row — explicit pause / awaiting input
   | 'leaving';    // running-left row — going away / wrapping up
 
-export type WidgetEventName = 'stateChange';
+export type WidgetEventName = 'stateChange' | 'userMessage' | 'visibility';
 
 export interface SayOptions {
   ttl?: number;
@@ -42,6 +42,14 @@ export interface ConfigureOptions {
    *  format. Each `rowsDef` entry maps a row index to a named row id (e.g.
    *  'idle', 'walking') with its frame count and FPS. */
   atlas?: PetAtlasLayout;
+  /** Show a chat input under the speech bubble. On Enter, the input fires a
+   *  `userMessage` event with the typed text. Consumers wire this to their
+   *  own backend (LLM, helpdesk, custom) and call `say(reply)` to display
+   *  the response. The pet ships no UI for message history — that's
+   *  consumer territory. */
+  chat?: boolean;
+  /** Placeholder text for the chat input. Default: "Ask…". */
+  chatPlaceholder?: string;
 }
 
 export interface MountOptions extends ConfigureOptions {
@@ -80,6 +88,18 @@ export interface AgentPetAPI {
   mount(opts?: MountOptions): void;
   unmount(): void;
   readonly mounted: boolean;
+  /** Hide the pet, replacing it with a small minimized dock the user can
+   *  click to bring the pet back. State persists in localStorage so the
+   *  pet stays hidden across reloads. Fires a `visibility` event with
+   *  `{ visible: false }`. */
+  hide(): void;
+  /** Show the pet, removing the minimized dock. Fires `visibility` with
+   *  `{ visible: true }`. */
+  show(): void;
+  /** Toggle hidden ↔ visible. */
+  toggle(): void;
+  /** True when the pet is in the minimized-dock state. */
+  readonly hidden: boolean;
 }
 
 /**

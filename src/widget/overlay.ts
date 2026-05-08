@@ -48,8 +48,20 @@ function savePosition(key: string, p: Position): void {
 
 export interface OverlayOptions {
   positionKey: string;
+  hiddenKey: string;
   size?: number;
   onDismissSpeech?: () => void;
+  onHide?: () => void;
+  onUserMessage?: (text: string) => void;
+}
+
+function loadHidden(key: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try { return window.localStorage.getItem(key) === '1'; } catch { return false; }
+}
+
+function saveHidden(key: string, hidden: boolean): void {
+  try { window.localStorage.setItem(key, hidden ? '1' : '0'); } catch { /* ignore */ }
 }
 
 export class PetOverlayElement {
@@ -58,12 +70,21 @@ export class PetOverlayElement {
   private bubbleNameEl: HTMLElement;
   private bubbleTextEl: HTMLElement;
   private bubbleActions: HTMLElement;
+  private chatForm: HTMLFormElement | null = null;
+  private chatInput: HTMLInputElement | null = null;
   private spriteWrapper: HTMLElement;
+  private dock: HTMLButtonElement | null = null;
   private sprite: PetSprite;
   private size: number;
   private position: Position;
   private positionKey: string;
+  private hiddenKey: string;
   private onDismissSpeech?: () => void;
+  private onHide?: () => void;
+  private onUserMessage?: (text: string) => void;
+  private hidden = false;
+  private chatEnabled = false;
+  private chatPlaceholder = 'Ask…';
 
   // State
   private active: ResolvedPet | null = null;
@@ -94,8 +115,12 @@ export class PetOverlayElement {
   constructor(parent: ParentNode, opts: OverlayOptions) {
     this.size = opts.size ?? 96;
     this.positionKey = opts.positionKey;
+    this.hiddenKey = opts.hiddenKey;
     this.onDismissSpeech = opts.onDismissSpeech;
+    this.onHide = opts.onHide;
+    this.onUserMessage = opts.onUserMessage;
     this.position = loadPosition(this.positionKey);
+    this.hidden = loadHidden(this.hiddenKey);
 
     // ── Root overlay ────────────────────────────────────────────────
     this.root = document.createElement('div');
@@ -139,6 +164,7 @@ export class PetOverlayElement {
     this.spriteWrapper.addEventListener('pointerenter', this.onPointerEnter);
     this.spriteWrapper.addEventListener('pointerleave', this.onPointerLeave);
 
+    if (this.hidden) this.applyHiddenState();
     this.armWaitingTimer();
   }
 
@@ -188,6 +214,24 @@ export class PetOverlayElement {
     this.currentSpeech = speech;
     if (speech) this.openBubble();
     this.refreshBubble();
+  }
+
+  setChat(enabled: boolean, placeholder?: string): void {
+    this.chatEnabled = enabled;
+    if (placeholder) this.chatPlaceholder = placeholder;
+    if (!enabled) this.removeChatInput();
+    this.refreshBubble();
+  }
+
+  setHidden(hidden: boolean): void {
+    if (this.hidden === hidden) return;
+    this.hidden = hidden;
+    saveHidden(this.hiddenKey, hidden);
+    this.applyHiddenState();
+  }
+
+  isHidden(): boolean {
+    return this.hidden;
   }
 
   destroy(): void {
@@ -430,6 +474,20 @@ export class PetOverlayElement {
       this.refreshBubble();
     });
     this.bubbleActions.appendChild(dismiss);
+
+    const hide = document.createElement('button');
+    hide.type = 'button';
+    hide.textContent = '⤓ Hide';
+    hide.title = 'Minimize to dock';
+    hide.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;background:transparent;border:none;cursor:pointer;color:inherit;padding:0;opacity:0.7';
+    hide.addEventListener('click', () => {
+      this.setHidden(true);
+      this.onHide?.();
+    });
+    this.bubbleActions.appendChild(hide);
+
+    if (this.chatEnabled) this.renderChatInput();
+    else this.removeChatInput();
   }
 
   // ── Style helpers ─────────────────────────────────────────────────
@@ -463,5 +521,110 @@ export class PetOverlayElement {
       'justify-content:center',
       `font-size:${Math.round(this.size * 0.55)}px`,
     ].join(';');
+  }
+
+  // ── Hidden / dock ─────────────────────────────────────────────────
+
+  private applyHiddenState(): void {
+    if (this.hidden) {
+      this.bubbleOpen = false;
+      this.bubble.style.display = 'none';
+      this.spriteWrapper.style.display = 'none';
+      this.clearAmbient();
+      if (this.waitingTimer) { clearTimeout(this.waitingTimer); this.waitingTimer = null; }
+      this.renderDock();
+    } else {
+      this.spriteWrapper.style.display = '';
+      this.removeDock();
+      this.armWaitingTimer();
+      if (this.computedInteraction() === 'idle') this.startAmbient();
+    }
+  }
+
+  private renderDock(): void {
+    if (this.dock) return;
+    const accent = this.active?.accent ?? '#7eb8da';
+    const glyph = this.active?.glyph ?? '🐾';
+    const dockSize = Math.max(36, Math.round(this.size * 0.45));
+    const dock = document.createElement('button');
+    dock.type = 'button';
+    dock.className = 'ap-dock';
+    dock.setAttribute('aria-label', this.active ? `Show ${this.active.name}` : 'Show pet');
+    dock.title = this.active ? `Show ${this.active.name}` : 'Show pet';
+    dock.textContent = glyph;
+    dock.style.cssText = [
+      `width:${dockSize}px`,
+      `height:${dockSize}px`,
+      'border-radius:50%',
+      `background:var(--ap-bubble-bg, #1a1a1a)`,
+      `border:1.5px solid ${accent}`,
+      'color:inherit',
+      `font-size:${Math.round(dockSize * 0.5)}px`,
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'cursor:pointer',
+      'pointer-events:auto',
+      'padding:0',
+      `box-shadow:0 2px 12px ${accent}33`,
+      'transition:transform 120ms ease',
+    ].join(';');
+    dock.addEventListener('pointerenter', () => { dock.style.transform = 'scale(1.08)'; });
+    dock.addEventListener('pointerleave', () => { dock.style.transform = ''; });
+    dock.addEventListener('click', () => { this.setHidden(false); });
+    this.root.appendChild(dock);
+    this.dock = dock;
+  }
+
+  private removeDock(): void {
+    if (!this.dock) return;
+    this.dock.remove();
+    this.dock = null;
+  }
+
+  // ── Chat input ────────────────────────────────────────────────────
+
+  private renderChatInput(): void {
+    if (!this.active) return;
+    if (this.chatForm) {
+      const input = this.chatInput;
+      if (input) input.placeholder = this.chatPlaceholder;
+      return;
+    }
+    const form = document.createElement('form');
+    form.className = 'ap-chat';
+    form.style.cssText = 'display:flex;gap:4px;margin-top:6px';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = this.chatPlaceholder;
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.style.cssText = [
+      'flex:1', 'min-width:0', 'background:transparent',
+      `border:1px solid ${this.active.accent}66`, 'border-radius:4px',
+      'padding:3px 6px', 'font-size:11px', 'color:inherit', 'font:inherit',
+      'outline:none',
+    ].join(';');
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { input.value = ''; input.blur(); e.preventDefault(); }
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      this.onUserMessage?.(text);
+    });
+    form.appendChild(input);
+    this.bubble.appendChild(form);
+    this.chatForm = form;
+    this.chatInput = input;
+  }
+
+  private removeChatInput(): void {
+    if (!this.chatForm) return;
+    this.chatForm.remove();
+    this.chatForm = null;
+    this.chatInput = null;
   }
 }

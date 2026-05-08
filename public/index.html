@@ -79,6 +79,16 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });</code
     <button class="primary" data-pet-id="guga" data-pet-name="Guga" data-pet-source="codex">Restore default (Guga)</button>
   </div>
 
+  <h3>Hide &amp; chat <small style="text-transform: none;">— new in v0.8</small></h3>
+  <div class="group">
+    <button onclick="AgentPet.hide()">⤓ Hide to dock</button>
+    <button onclick="AgentPet.show()">↑ Show</button>
+    <button id="toggle-chat">Enable chat input</button>
+  </div>
+  <p style="font-size: 0.85em; opacity: 0.7;">
+    With chat on, type into the speech-bubble input and press Enter. The demo handler echoes your message back via <code>say()</code>; in production you'd send it to an LLM / helpdesk and display the response the same way.
+  </p>
+
   <h2>Pet catalog</h2>
 
   <h3>Codex Pets <small style="text-transform: none;">— popular from <a href="https://codex-pets.net/">codex-pets.net</a></small></h3>
@@ -216,6 +226,20 @@ AgentPet.configure({ name: 'Rex', imageUrl: '...', useCodexAtlas: true });</code
           b.classList.toggle('active', b.dataset.state === s);
         });
       });
+
+      // Chat demo — wire userMessage events to a simple echo via say().
+      // Real consumers would replace this with a fetch to their LLM/helpdesk.
+      AgentPet.on('userMessage', (text) => {
+        AgentPet.say(`You said: "${text}"`, { ttl: 6000 });
+      });
+      const chatBtn = document.getElementById('toggle-chat');
+      let chatOn = false;
+      chatBtn.onclick = () => {
+        chatOn = !chatOn;
+        AgentPet.configure({ chat: chatOn, chatPlaceholder: 'Ask the pet…' });
+        chatBtn.textContent = chatOn ? 'Disable chat input' : 'Enable chat input';
+        chatBtn.classList.toggle('primary', chatOn);
+      };
     });
   </script>
 </body>

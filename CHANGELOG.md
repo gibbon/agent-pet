@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.8.0 — Hide/show + opt-in chat input
+
+**Hide → minimized dock.** Users can now collapse the pet to a small clickable circle that survives reloads (state in `${storageKey}:hidden`). New "Hide" button next to "Dismiss" in the speech bubble. New API: `AgentPet.hide()`, `AgentPet.show()`, `AgentPet.toggle()`, `AgentPet.hidden`. New `visibility` event fires `{ visible: boolean }` on every transition.
+
+**Opt-in chat input.** Adds a single-line input under the speech bubble that fires a `userMessage` event on Enter. The widget ships no chat UI beyond the input — message history, markdown, threading, etc. are consumer territory. Wire to any backend (LLM, helpdesk, custom) and call `say(reply)` to display responses.
+
+```html
+<script src=".../agent-pet-widget.iife.js" data-chat="true"></script>
+<script>
+  AgentPet.on('userMessage', async (text) => {
+    const reply = await fetch('/api/chat', { method: 'POST', body: text }).then(r => r.text());
+    AgentPet.say(reply);
+  });
+</script>
+```
+
+Or programmatically: `AgentPet.configure({ chat: true, chatPlaceholder: 'Ask me anything…' })`.
+
+Bundle: IIFE +1.1 KB gzipped (8.4 → 9.5).
+
 ## v0.7.1 — localStorage migration for v0.6.1 supabase URL fix
 
 The v0.6.1 source fix didn't help returning visitors: their `agent-pet:config` localStorage still held a `custom.imageUrl` pointing at the dead supabase host, and the demo page only seeds a fresh URL when localStorage is empty.

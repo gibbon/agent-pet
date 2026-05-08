@@ -53,6 +53,12 @@ export function createRegistry(): AgentPetRegistry {
     get mounted() {
       return pets.get('main')?.mounted ?? false;
     },
+    hide: () => ensureMain().hide(),
+    show: () => ensureMain().show(),
+    toggle: () => ensureMain().toggle(),
+    get hidden() {
+      return pets.get('main')?.hidden ?? false;
+    },
 
     // ── Multi-pet API ────────────────────────────────────────────
     create(id: string, opts?: MountOptions): AgentPetAPI {

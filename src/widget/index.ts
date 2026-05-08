@@ -57,6 +57,8 @@ function readScriptConfig(): ScriptConfig {
     useCodexAtlas: explicitUseAtlas || (provider?.useCodexAtlas ?? false),
     autoMount: script.dataset.autoMount !== 'false',
     observe: Object.keys(observe).length > 0 ? observe : undefined,
+    chat: script.dataset.chat === 'true',
+    chatPlaceholder: script.dataset.chatPlaceholder,
   };
 }
 
