@@ -13,7 +13,11 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const out = resolve(process.argv[2] ?? 'docs/hero.png');
-const url = process.env.AGENT_PET_URL ?? 'https://agent-pet.pages.dev/';
+// Default URL opens the speech bubble via ?bubble= so the README hero shows
+// the dialog open. Override with AGENT_PET_URL for other states (localhost
+// dev, bare landing page, custom message, etc.).
+const url = process.env.AGENT_PET_URL
+  ?? 'https://agent-pet.pages.dev/?bubble=Build%20done!&link=https://agent-pet.pages.dev/';
 
 execFileSync('google-chrome', [
   '--headless',
