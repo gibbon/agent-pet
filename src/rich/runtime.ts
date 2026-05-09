@@ -114,14 +114,15 @@ interface SourceSpriteOpts {
 }
 
 /** Source-frame sprite — crops the original sprite-rip image at a bbox.
- *  Each frame call resizes the element + repositions the background to
- *  pull the right portion of the source. The element renders at most
- *  `size` px on its longer axis (preserving aspect). */
+ *  Caller passes `scale` per-frame so the same scale can be applied across
+ *  every frame in a track (preserves the source's relative sizes — a
+ *  tucked pose with a smaller bbox stays smaller on screen instead of
+ *  zooming up to fill the same display size as wider frames). */
 function createSourceSprite(
   parent: HTMLElement,
   ctx: RichRuntimeContext,
   opts: SourceSpriteOpts,
-): { el: HTMLDivElement; setFrame: (frame: SourceFrame) => void } {
+): { el: HTMLDivElement; setFrame: (frame: SourceFrame, scale: number) => void } {
   const el = document.createElement('div');
   el.style.cssText = [
     'position:absolute',
@@ -135,7 +136,7 @@ function createSourceSprite(
   ].join(';');
   parent.appendChild(el);
   const dims = ctx.sourceImage ? sourceDims.get(ctx.sourceImage) : null;
-  const setFrame = (frame: SourceFrame) => {
+  const setFrame = (frame: SourceFrame, scale: number) => {
     if (!ctx.sprites || !dims || !ctx.sourceImage) return;
     const bbox = ctx.sprites.get(`${frame.band}.${frame.idx}`);
     if (!bbox) return;
@@ -143,8 +144,6 @@ function createSourceSprite(
     const yEnd = frame.ymax != null ? Math.min(y1, y0 + frame.ymax) : y1;
     const bboxW = x1 - x0;
     const bboxH = yEnd - y0;
-    const maxDim = Math.max(bboxW, bboxH);
-    const scale = opts.size / maxDim;
     const dispW = bboxW * scale;
     const dispH = bboxH * scale;
     el.style.width = `${dispW}px`;
@@ -154,6 +153,26 @@ function createSourceSprite(
     el.style.backgroundSize = `${dims.w * scale}px ${dims.h * scale}px`;
   };
   return { el, setFrame };
+}
+
+/** Compute a track/projectile-level scale factor from the largest bbox
+ *  dimension across the supplied frames. All frames in the same track
+ *  use this same factor → their relative sizes are preserved. */
+function computeFrameSetScale(
+  frames: SourceFrame[],
+  ctx: RichRuntimeContext,
+  targetSize: number,
+): number {
+  if (!ctx.sprites) return 1;
+  let maxDim = 0;
+  for (const f of frames) {
+    const bbox = ctx.sprites.get(`${f.band}.${f.idx}`);
+    if (!bbox) continue;
+    const [x0, y0, x1, y1] = bbox;
+    const yEnd = f.ymax != null ? Math.min(y1, y0 + f.ymax) : y1;
+    maxDim = Math.max(maxDim, x1 - x0, yEnd - y0);
+  }
+  return maxDim > 0 ? targetSize / maxDim : 1;
 }
 
 function createSprite(parent: HTMLElement, opts: SpriteOpts): { el: HTMLDivElement; setFrame: (n: number) => void } {
@@ -336,6 +355,9 @@ function createSourceFrameTrackRenderer(
   const fps = track.fps ?? Math.max(1, Math.round((frames.length * 1000) / action.durationMs));
   const loops = track.loops ?? 1;
   const sprite = createSourceSprite(stage, ctx, { size: ctx.size, z: track.z ?? 0 });
+  // Track-uniform scale — every frame renders at this same factor so
+  // their bbox sizes stay proportional to one another.
+  const trackScale = computeFrameSetScale(frames, ctx, ctx.size);
   return {
     update(t: number, nowMs: number, startMs: number) {
       const elapsedMs = nowMs - startMs;
@@ -349,14 +371,22 @@ function createSourceFrameTrackRenderer(
         frameIdx = capped % frames.length;
       }
       const frame = frames[frameIdx];
-      sprite.setFrame(frame);
+      // Per-frame scale multiplier on top of the track-uniform scale —
+      // lets the user upscale a single tucked/oddly-drawn frame.
+      sprite.setFrame(frame, trackScale * (frame.scale ?? 1));
       const k = sampleKeyframes(track, t);
-      // Per-frame flipH XORs the keyframe's flipH so the user can flip the
-      // whole track via keyframe AND individual frames if needed.
       const flipped = !!k.flipH !== !!frame.flipH;
       const flipScaleX = (flipped ? -1 : 1) * k.scaleX;
+      // Per-frame offset is added to the keyframe's x/y so each frame can
+      // be anchored to a common point (e.g. the feet) without the keyframe
+      // values having to absorb per-sprite drift. Frame.flipH is mirrored,
+      // but the per-frame offset is NOT mirrored — it applies in the
+      // sprite's own (post-flip) coordinate space; the renderer flips by
+      // negating scaleX so positive offsetX still means "right" visually.
+      const offX = (frame.offsetX || 0) * (flipped ? -1 : 1);
+      const offY = frame.offsetY || 0;
       sprite.el.style.transform = [
-        `translate(calc(-50% + ${k.x}px), calc(-50% + ${k.y}px))`,
+        `translate(calc(-50% + ${k.x + offX}px), calc(-50% + ${k.y + offY}px))`,
         `rotate(${k.rotation}deg)`,
         `skew(${k.skewX}deg, ${k.skewY}deg)`,
         `scale(${flipScaleX}, ${k.scaleY})`,
@@ -430,11 +460,17 @@ function spawnSourceFrameProjectile(spawn: RichSpawn, ctx: RichRuntimeContext, s
     if (t >= 1) { sprite.el.remove(); return; }
     const pos = evalPath(path, t);
     const fIdx = Math.floor((elapsed / 1000) * fps) % spawn.frames!.length;
-    sprite.setFrame(spawn.frames![fIdx]);
+    const frame = spawn.frames![fIdx];
     const s = sizeStart + (sizeEnd - sizeStart) * t;
+    // Track-uniform scale so all projectile frames stay proportional;
+    // animated by the projectile's growing/shrinking size over the flight.
+    const projScale = computeFrameSetScale(spawn.frames!, ctx, s) * (frame.scale ?? 1);
+    sprite.setFrame(frame, projScale);
+    const offX = (frame.offsetX || 0) * (frame.flipH ? -1 : 1);
+    const offY = frame.offsetY || 0;
     sprite.el.style.transform = [
-      `translate(calc(-50% + ${origin.x + pos.x}px), calc(-50% + ${origin.y + pos.y}px))`,
-      `scale(${s / size})`,
+      `translate(calc(-50% + ${origin.x + pos.x + offX}px), calc(-50% + ${origin.y + pos.y + offY}px))`,
+      `scale(${frame.flipH ? -1 : 1}, 1)`,
     ].join(' ');
     requestAnimationFrame(tick);
   };

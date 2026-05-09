@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.12.0 — Per-frame anchoring + preprocessing pipeline
+
+### Rich-runtime additions
+
+- **`SourceFrame.offsetX` / `offsetY`** — display-pixel offsets so each
+  frame can pin to its own anchor (typically the feet) without having to
+  bake the offset into the keyframe. The runtime now adds the offset to
+  the keyframe's x/y. Negated when the sprite is mirrored so positive
+  values still mean "right" visually.
+- **`SourceFrame.scale`** — per-frame multiplier on top of the
+  track-uniform scale. Lets you upscale a single oddly-drawn frame
+  (e.g. a tucked pose drawn at a different scale than the rest of the
+  rip) without affecting siblings.
+- **Track-uniform scale** — every frame in a track now scales by the
+  same factor (computed from the largest bbox dimension across all
+  frames). Smaller bbox frames render smaller on screen instead of
+  zooming up to fill the same display size, preserving the source
+  rip's true relative sizes.
+
+### Preprocessing tooling
+
+New scripts in `scripts/` for turning raw sprite-rips into editor-ready
+assets, no Photoshop required:
+
+- **`preprocess-rip.py`** — chroma-keys a sprite rip (one or many
+  bg colors via repeated `--bg` flags) and runs alpha-channel
+  segmentation to produce a cleaned RGBA PNG + a `sprites.json` of
+  per-sprite bboxes. Supports `--auto-bg` (most-common-color across the
+  whole image), `--tolerance` for anti-aliased edges, `--noise` for grid
+  lines / JPEG artifacts, and `--preview` to write an outline-annotated
+  proof image. Handles PNG / GIF / WebP / JPG inputs.
+- **`batch-preprocess.py`** — drops every file in `sprites/` through the
+  preprocessor, slugifies the filenames, and writes each result to
+  `sprites/processed/<slug>/`. Auto-detects bg colors and reports a
+  summary table per rip.
+
+Bundle: rich IIFE 7.9 KB raw / 2.9 KB gzip (unchanged).
+
 ## v0.11.0 — Rich runtime: source-frame tracks (atlas-free)
 
 Rich actions can now reference any sprite from the original sprite-rip image directly, bypassing the atlas entirely. Authoring a rich action no longer requires baking sprites into atlas rows first — every individual frame from the rip (typically 100–200 sprites for SF-style rips) is addressable by `(band, idx)`.

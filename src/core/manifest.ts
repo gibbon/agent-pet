@@ -178,12 +178,24 @@ export interface RichKeyframe {
 /** Reference to a single source sprite in the original sprite-rip image.
  *  `band` + `idx` indexes into the manifest's `sprites` array (the same
  *  scheme produced by the alpha-segmentation tooling). Optional `ymax` and
- *  `flipH` apply per-frame just like the atlas-pick editor uses them. */
+ *  `flipH` apply per-frame just like the atlas-pick editor uses them.
+ *
+ *  `offsetX` / `offsetY` (display pixels) shift the sprite from its default
+ *  bbox-centred position — used to anchor each frame to a common point
+ *  (typically the feet) so the character doesn't visibly hop between
+ *  frames with different bbox dimensions. */
 export interface SourceFrame {
   band: number;
   idx: number;
   ymax?: number;
   flipH?: boolean;
+  offsetX?: number;
+  offsetY?: number;
+  /** Per-frame scale multiplier. Defaults to 1. Applied on TOP of the
+   *  track-uniform scale, so a value of 1.2 makes this single frame 20%
+   *  bigger than the rest of the track. Useful when a source rip drew
+   *  one pose at a different scale than the rest. */
+  scale?: number;
 }
 
 /** Source sprite metadata embedded in the manifest. `bbox` is `[x0, y0, x1, y1]`
