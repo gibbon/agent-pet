@@ -6,6 +6,7 @@ export type {
   ActionSpec, ProjectileSpec, PetManifest, StateMap,
   RichAction, RichTrack, RichKeyframe, RichSpawn, RichPath,
   ParticleEmitter, StagePoint, Easing,
+  SourceFrame, SpriteData,
 } from '../core/manifest';
 
 /** What the lazy-loaded rich runtime registers with the base widget. The
@@ -24,16 +25,22 @@ export interface RichRuntime {
 
 /** Information passed to the rich runtime when it plays an action. */
 export interface RichRuntimeContext {
-  /** The DOM element representing the pet on-screen — the rich renderer
-   *  uses this to anchor its overlay (it can read getBoundingClientRect()
-   *  to know where on the page to draw). */
-  anchor: HTMLElement;
+  /** Current pet sprite center in viewport coordinates. The rich runtime
+   *  reads this on action start (and whenever it needs to re-anchor). The
+   *  base widget computes it from the on-screen sprite's bounding rect. */
+  getAnchorPos(): { x: number; y: number };
   /** The pet's spritesheet URL — same texture the rich runtime samples. */
   imageUrl: string;
   /** The pet's atlas layout — needed to compute UVs for atlas-row sprites. */
   atlas: PetAtlasLayout;
   /** Pet's display size in pixels. */
   size: number;
+  /** Original sprite-rip image URL — used by source-frame tracks/spawns
+   *  that bypass the atlas. Optional; only required when the action
+   *  references frames by (band, idx). */
+  sourceImage?: string;
+  /** Source-sprite bbox metadata. Map: `${band}.${idx}` → [x0, y0, x1, y1]. */
+  sprites?: Map<string, [number, number, number, number]>;
 }
 
 /** Standard widget states (the original 9). Pets without a manifest use only
@@ -104,6 +111,11 @@ export interface ConfigureOptions {
   /** Stage-space rich actions invokable via play(name). Played by the
    *  rich runtime when present. Ignored when `runtime !== 'rich'`. */
   richActions?: Record<string, RichAction>;
+  /** Source-image URL — required when rich tracks reference frames by
+   *  (band, idx) instead of by atlas row. */
+  sourceImage?: string;
+  /** Inline source-sprite bbox metadata used by source-frame rich tracks. */
+  sprites?: import('../core/manifest').SpriteData[];
   /** Show a chat input under the speech bubble. On Enter, the input fires a
    *  `userMessage` event with the typed text. Consumers wire this to their
    *  own backend (LLM, helpdesk, custom) and call `say(reply)` to display

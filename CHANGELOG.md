@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.11.0 — Rich runtime: source-frame tracks (atlas-free)
+
+Rich actions can now reference any sprite from the original sprite-rip image directly, bypassing the atlas entirely. Authoring a rich action no longer requires baking sprites into atlas rows first — every individual frame from the rip (typically 100–200 sprites for SF-style rips) is addressable by `(band, idx)`.
+
+- **`RichTrack.frames: SourceFrame[]`** — alternative to `.row`. Each entry is `{ band, idx, ymax?, flipH? }`, indexing into the manifest's inline `sprites` array. The runtime cycles through them at `track.fps` (or a sensible default that fills the action's duration).
+- **`RichSpawn.frames`** — same treatment for projectiles. A boomerang fireball can use a 4-frame source-frame loop without needing a "fireball" atlas row.
+- **`PetManifest.sourceImage`** — URL of the original sprite-rip image (e.g. `/ryu.png`).
+- **`PetManifest.sprites: SpriteData[]`** — inline bbox metadata. Self-contained — no separate `sprites.json` fetch needed at runtime. ~10 KB raw / ~2 KB gzip for ~200 sprites.
+- **Rich runtime** — preloads the source image's natural dimensions on action start (cached per URL), then crops bboxes via CSS `background-size`/`background-position`. Per-frame `flipH` XORs with keyframe `flipH` so a track can flip the whole sprite OR specific frames.
+
+Authoring path: the rich editor (`rich-editor.html` in the deployment) now lets you click any source sprite to add it as a frame — no need to use the atlas-pick editor + rebuild step.
+
+Bundle sizes (unchanged for atlas-only pets):
+- widget IIFE 38.4 KB raw / **11.9 KB gzip**
+- rich IIFE 7.8 KB raw / **2.9 KB gzip** (+0.5 KB gzip vs v0.10 for the bbox renderer)
+
+Backwards compatible: existing rich actions using `row` still work; manifests without `sourceImage`/`sprites` only support atlas-row tracks.
+
 ## v0.10.0 — Rich runtime: lazy-loaded addon for fancy pets
 
 Adds an opt-in **rich runtime** that consumers' bundles only download when they actually want it. The base widget stays at ~12 KB gzip; pets that declare `runtime: "rich"` in their manifest trigger a script-tag injection of the separate `agent-pet-rich.iife.js` bundle (~2.5 KB gzip), which registers itself with the base widget and takes over `play()` for any action listed in the manifest's `richActions` map.

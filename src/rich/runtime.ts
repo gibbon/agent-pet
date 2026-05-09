@@ -14,7 +14,7 @@
 
 import type {
   RichAction, RichTrack, RichKeyframe, RichSpawn, RichPath,
-  ParticleEmitter, Easing,
+  ParticleEmitter, Easing, SourceFrame,
 } from '../core/manifest';
 import type { RichRuntime, RichRuntimeContext } from '../widget/api';
 
@@ -70,6 +70,31 @@ function sampleKeyframes(track: RichTrack, t: number) {
   };
 }
 
+// ─── Source-image dimensions cache ──────────────────────────────────
+// Source-frame tracks crop bboxes from the original sprite-rip image. To
+// compute the right background-size, we need the source image's natural
+// pixel dimensions. Load once per URL and reuse.
+
+const sourceDims = new Map<string, { w: number; h: number } | null>();
+
+function ensureSourceDims(url: string | undefined): Promise<{ w: number; h: number } | null> {
+  if (!url) return Promise.resolve(null);
+  if (sourceDims.has(url)) return Promise.resolve(sourceDims.get(url)!);
+  return new Promise((resolve) => {
+    const im = new Image();
+    im.onload = () => {
+      const dims = { w: im.naturalWidth, h: im.naturalHeight };
+      sourceDims.set(url, dims);
+      resolve(dims);
+    };
+    im.onerror = () => {
+      sourceDims.set(url, null);
+      resolve(null);
+    };
+    im.src = url;
+  });
+}
+
 // ─── Sprite element (one per track or projectile) ────────────────────
 
 interface SpriteOpts {
@@ -81,6 +106,54 @@ interface SpriteOpts {
   size: number;
   fps: number;
   z: number;
+}
+
+interface SourceSpriteOpts {
+  size: number;
+  z: number;
+}
+
+/** Source-frame sprite — crops the original sprite-rip image at a bbox.
+ *  Each frame call resizes the element + repositions the background to
+ *  pull the right portion of the source. The element renders at most
+ *  `size` px on its longer axis (preserving aspect). */
+function createSourceSprite(
+  parent: HTMLElement,
+  ctx: RichRuntimeContext,
+  opts: SourceSpriteOpts,
+): { el: HTMLDivElement; setFrame: (frame: SourceFrame) => void } {
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'position:absolute',
+    'left:0', 'top:0',
+    'background-repeat:no-repeat',
+    'image-rendering:pixelated',
+    'pointer-events:none',
+    `z-index:${opts.z}`,
+    'transform-origin:center center',
+    'will-change:transform,opacity',
+  ].join(';');
+  parent.appendChild(el);
+  const dims = ctx.sourceImage ? sourceDims.get(ctx.sourceImage) : null;
+  const setFrame = (frame: SourceFrame) => {
+    if (!ctx.sprites || !dims || !ctx.sourceImage) return;
+    const bbox = ctx.sprites.get(`${frame.band}.${frame.idx}`);
+    if (!bbox) return;
+    const [x0, y0, x1, y1] = bbox;
+    const yEnd = frame.ymax != null ? Math.min(y1, y0 + frame.ymax) : y1;
+    const bboxW = x1 - x0;
+    const bboxH = yEnd - y0;
+    const maxDim = Math.max(bboxW, bboxH);
+    const scale = opts.size / maxDim;
+    const dispW = bboxW * scale;
+    const dispH = bboxH * scale;
+    el.style.width = `${dispW}px`;
+    el.style.height = `${dispH}px`;
+    el.style.backgroundImage = `url(${quoteUrl(ctx.sourceImage)})`;
+    el.style.backgroundPosition = `-${x0 * scale}px -${y0 * scale}px`;
+    el.style.backgroundSize = `${dims.w * scale}px ${dims.h * scale}px`;
+  };
+  return { el, setFrame };
 }
 
 function createSprite(parent: HTMLElement, opts: SpriteOpts): { el: HTMLDivElement; setFrame: (n: number) => void } {
@@ -157,15 +230,20 @@ function evalPath(path: RichPath, t: number): { x: number; y: number } {
   }
 }
 
-// ─── Stage (one absolute-positioned overlay anchored to the pet) ────
+// ─── Stage (one absolute-positioned overlay attached to body) ──────
+// We attach the stage to <body> rather than the pet's shadow DOM because:
+//   1. Fixed-positioned elements escape shadow DOM stacking contexts cleanly,
+//   2. Projectiles fly across the whole page, well outside the pet's bounds,
+//   3. CSS transforms work the same regardless of parent.
+// One stage per page; reused across actions.
 
-function ensureStage(ctx: RichRuntimeContext): HTMLElement {
-  // Re-use a stage element on the anchor between actions so we don't
-  // create/destroy a layer for every play() call.
-  let stage = ctx.anchor.querySelector<HTMLElement>(':scope > [data-rich-stage]');
+const STAGE_ID = '__agent_pet_rich_stage__';
+
+function ensureStage(): HTMLElement {
+  let stage = document.getElementById(STAGE_ID);
   if (stage) return stage;
   stage = document.createElement('div');
-  stage.dataset.richStage = '';
+  stage.id = STAGE_ID;
   stage.style.cssText = [
     'position:fixed',
     'top:0', 'left:0',
@@ -173,21 +251,16 @@ function ensureStage(ctx: RichRuntimeContext): HTMLElement {
     'pointer-events:none',
     'z-index:9999',
   ].join(';');
-  ctx.anchor.appendChild(stage);
+  document.body.appendChild(stage);
   return stage;
 }
 
-/** Anchor the stage at the pet's current screen-space position. The pet
- *  may move between actions — re-read getBoundingClientRect each play. */
-function positionStage(stage: HTMLElement, anchor: HTMLElement): void {
-  const r = anchor.getBoundingClientRect();
-  // Anchor: bottom-center of the pet sprite. The anchor host is fixed-size
-  // 0×0 with the sprite as a positioned child; use the sprite's rect if
-  // it's the immediate child, otherwise fall back to the anchor.
-  const sprite = anchor.shadowRoot?.querySelector('[class*=ap-sprite]') as HTMLElement | null;
-  const rect = sprite?.getBoundingClientRect() ?? r;
-  stage.style.left = `${rect.left + rect.width / 2}px`;
-  stage.style.top = `${rect.top + rect.height / 2}px`;
+/** Move the stage to the pet's current viewport-space center. Called once at
+ *  action start; for v0 we don't track the pet during the action. */
+function positionStage(stage: HTMLElement, ctx: RichRuntimeContext): void {
+  const { x, y } = ctx.getAnchorPos();
+  stage.style.left = `${x}px`;
+  stage.style.top = `${y}px`;
 }
 
 // ─── Track renderer ─────────────────────────────────────────────────
@@ -198,9 +271,15 @@ function createTrackRenderer(
   ctx: RichRuntimeContext,
   stage: HTMLElement,
 ) {
+  // Source-frame mode: track lists explicit (band, idx) frames cropped from
+  // the original sprite-rip image. No atlas required.
+  if (track.frames && track.frames.length > 0) {
+    return createSourceFrameTrackRenderer(track, action, ctx, stage);
+  }
+  // Atlas-row mode (existing behaviour).
   const rowDef = ctx.atlas.rowsDef.find((r) => r.id === track.row);
   if (!rowDef) {
-    console.warn(`[agent-pet rich] track row "${track.row}" not in atlas`);
+    console.warn(`[agent-pet rich] track row "${track.row}" not in atlas (and no .frames either)`);
     return { update() {}, cleanup() {} };
   }
   const rowFps = track.fps ?? rowDef.fps;
@@ -219,7 +298,6 @@ function createTrackRenderer(
     update(t: number, nowMs: number, startMs: number) {
       const elapsedMs = nowMs - startMs;
       const totalFramesPlayed = Math.floor((elapsedMs / 1000) * rowFps);
-      // loops:0 = play once and hold last frame.
       let frame: number;
       if (loops === 0) {
         frame = Math.min(rowDef.frames - 1, totalFramesPlayed);
@@ -245,10 +323,62 @@ function createTrackRenderer(
   };
 }
 
+/** Source-frame variant of createTrackRenderer — cycles through track.frames
+ *  using bbox crops of ctx.sourceImage instead of atlas-cell stepping. */
+function createSourceFrameTrackRenderer(
+  track: RichTrack,
+  action: RichAction,
+  ctx: RichRuntimeContext,
+  stage: HTMLElement,
+) {
+  const frames = track.frames!;
+  // Default fps: one full pass over `frames` matching the action's duration.
+  const fps = track.fps ?? Math.max(1, Math.round((frames.length * 1000) / action.durationMs));
+  const loops = track.loops ?? 1;
+  const sprite = createSourceSprite(stage, ctx, { size: ctx.size, z: track.z ?? 0 });
+  return {
+    update(t: number, nowMs: number, startMs: number) {
+      const elapsedMs = nowMs - startMs;
+      const totalFramesPlayed = Math.floor((elapsedMs / 1000) * fps);
+      let frameIdx: number;
+      if (loops === 0) {
+        frameIdx = Math.min(frames.length - 1, totalFramesPlayed);
+      } else {
+        const totalFrames = frames.length * loops;
+        const capped = Math.min(totalFrames - 1, totalFramesPlayed);
+        frameIdx = capped % frames.length;
+      }
+      const frame = frames[frameIdx];
+      sprite.setFrame(frame);
+      const k = sampleKeyframes(track, t);
+      // Per-frame flipH XORs the keyframe's flipH so the user can flip the
+      // whole track via keyframe AND individual frames if needed.
+      const flipped = !!k.flipH !== !!frame.flipH;
+      const flipScaleX = (flipped ? -1 : 1) * k.scaleX;
+      sprite.el.style.transform = [
+        `translate(calc(-50% + ${k.x}px), calc(-50% + ${k.y}px))`,
+        `rotate(${k.rotation}deg)`,
+        `skew(${k.skewX}deg, ${k.skewY}deg)`,
+        `scale(${flipScaleX}, ${k.scaleY})`,
+      ].join(' ');
+      sprite.el.style.opacity = String(k.alpha);
+    },
+    cleanup() {
+      sprite.el.remove();
+    },
+  };
+}
+
 // ─── Spawn handlers (projectiles + particles) ───────────────────────
 
 function spawnProjectile(spawn: RichSpawn, ctx: RichRuntimeContext, stage: HTMLElement) {
-  if (!spawn.row || !spawn.path || !spawn.durationMs) return;
+  if (!spawn.path || !spawn.durationMs) return;
+  // Source-frame projectile: bbox-crop renderer.
+  if (spawn.frames && spawn.frames.length) {
+    return spawnSourceFrameProjectile(spawn, ctx, stage);
+  }
+  // Atlas-row projectile (existing).
+  if (!spawn.row) return;
   const rowDef = ctx.atlas.rowsDef.find((r) => r.id === spawn.row);
   if (!rowDef) return;
   const size = spawn.size ?? Math.round(ctx.size * 0.6);
@@ -274,6 +404,33 @@ function spawnProjectile(spawn: RichSpawn, ctx: RichRuntimeContext, stage: HTMLE
     const pos = evalPath(path, t);
     const f = Math.floor((elapsed / 1000) * rowDef.fps) % rowDef.frames;
     sprite.setFrame(f);
+    const s = sizeStart + (sizeEnd - sizeStart) * t;
+    sprite.el.style.transform = [
+      `translate(calc(-50% + ${origin.x + pos.x}px), calc(-50% + ${origin.y + pos.y}px))`,
+      `scale(${s / size})`,
+    ].join(' ');
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function spawnSourceFrameProjectile(spawn: RichSpawn, ctx: RichRuntimeContext, stage: HTMLElement) {
+  if (!spawn.path || !spawn.durationMs || !spawn.frames?.length) return;
+  const size = spawn.size ?? Math.round(ctx.size * 0.6);
+  const sprite = createSourceSprite(stage, ctx, { size, z: 1 });
+  const fps = spawn.fps ?? Math.max(4, Math.round((spawn.frames.length * 1000) / spawn.durationMs));
+  const startMs = performance.now();
+  const path = spawn.path;
+  const origin = spawn.origin ?? { x: 0, y: 0 };
+  const sizeStart = size;
+  const sizeEnd = spawn.endSize ?? size;
+  const tick = () => {
+    const elapsed = performance.now() - startMs;
+    const t = elapsed / spawn.durationMs!;
+    if (t >= 1) { sprite.el.remove(); return; }
+    const pos = evalPath(path, t);
+    const fIdx = Math.floor((elapsed / 1000) * fps) % spawn.frames!.length;
+    sprite.setFrame(spawn.frames![fIdx]);
     const s = sizeStart + (sizeEnd - sizeStart) * t;
     sprite.el.style.transform = [
       `translate(calc(-50% + ${origin.x + pos.x}px), calc(-50% + ${origin.y + pos.y}px))`,
@@ -328,11 +485,25 @@ function spawnParticles(spawn: RichSpawn, ctx: RichRuntimeContext, stage: HTMLEl
 
 // ─── Public RichRuntime impl ────────────────────────────────────────
 
+/** True if any track or spawn in this action references source frames (and
+ *  therefore needs ctx.sourceImage's natural dimensions before rendering). */
+function actionUsesSourceFrames(action: RichAction): boolean {
+  if (action.tracks?.some((t) => t.frames?.length)) return true;
+  if (action.spawn?.some((s) => s.frames?.length)) return true;
+  return false;
+}
+
 export function createRichRuntime(): RichRuntime {
   return {
-    playAction(name, action, ctx) {
-      const stage = ensureStage(ctx);
-      positionStage(stage, ctx.anchor);
+    async playAction(name, action, ctx) {
+      // Preload source-image dims if any track or spawn uses bbox-crop
+      // rendering. One round-trip the first time we see a given URL; the
+      // result is cached in the module-level sourceDims map.
+      if (actionUsesSourceFrames(action)) {
+        await ensureSourceDims(ctx.sourceImage);
+      }
+      const stage = ensureStage();
+      positionStage(stage, ctx);
       const startMs = performance.now();
       const renderers = action.tracks.map((t) => createTrackRenderer(t, action, ctx, stage));
       const pendingSpawns = (action.spawn ?? []).slice().sort((a, b) => a.t - b.t);

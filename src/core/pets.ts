@@ -42,6 +42,8 @@ function resolveCustomPet(c: PetCustom): ResolvedPet {
     runtime: c.runtime,
     richRuntimeUrl: c.richRuntimeUrl,
     richActions: c.richActions,
+    sourceImage: c.sourceImage,
+    sprites: c.sprites,
   };
 }
 

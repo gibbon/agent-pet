@@ -43,6 +43,10 @@ export interface PetCustom {
   richRuntimeUrl?: string;
   /** Stage-space rich actions. Played by the rich runtime when present. */
   richActions?: Record<string, import('./manifest').RichAction>;
+  /** Original sprite-rip image URL — used by source-frame rich tracks. */
+  sourceImage?: string;
+  /** Inline source-sprite bbox metadata for source-frame rich tracks. */
+  sprites?: import('./manifest').SpriteData[];
 }
 
 export interface PetConfig {
@@ -110,6 +114,8 @@ export interface ResolvedPet {
   runtime?: 'basic' | 'rich';
   richRuntimeUrl?: string;
   richActions?: Record<string, import('./manifest').RichAction>;
+  sourceImage?: string;
+  sprites?: import('./manifest').SpriteData[];
 }
 
 // ── Interaction states ─────────────────────────────────────────────────

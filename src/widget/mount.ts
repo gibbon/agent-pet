@@ -237,11 +237,18 @@ export function createAgentPetAPI(): AgentPetAPI {
       const richSpec = cfg.custom.richActions?.[action];
       if (richSpec && richRuntime && overlay && cfg.custom.imageUrl && cfg.custom.atlas) {
         const ovRef = overlay;
+        // Build a lookup map from the inline sprites array — runtime queries
+        // by `${band}.${idx}` for source-frame rendering.
+        const spriteMap = cfg.custom.sprites && cfg.custom.sprites.length
+          ? new Map(cfg.custom.sprites.map((s) => [`${s.band}.${s.idx}`, s.bbox]))
+          : undefined;
         const ctx = {
           getAnchorPos: () => ovRef.spriteCenter(),
           imageUrl: cfg.custom.imageUrl,
           atlas: cfg.custom.atlas,
           size: 96,
+          sourceImage: cfg.custom.sourceImage,
+          sprites: spriteMap,
         };
         const fns = listeners.get('stateChange');
         if (fns) for (const fn of fns) fn(action);
@@ -314,6 +321,7 @@ export function createAgentPetAPI(): AgentPetAPI {
           name: opts.name, glyph: opts.glyph, accent: opts.accent, imageUrl: opts.imageUrl,
           actions: opts.actions, stateMap: opts.stateMap,
           runtime: opts.runtime, richRuntimeUrl: opts.richRuntimeUrl, richActions: opts.richActions,
+          sourceImage: opts.sourceImage, sprites: opts.sprites,
         };
         if (opts.atlas) customPatch.atlas = opts.atlas;
         else if (opts.useCodexAtlas) customPatch.atlas = CODEX_ATLAS_LAYOUT;
@@ -350,10 +358,13 @@ export function createAgentPetAPI(): AgentPetAPI {
       } else {
         manifest = parsePetManifest(source);
       }
-      // Resolve spritesheet URL relative to the manifest URL.
-      const spritesheet = baseUrl
-        ? new URL(manifest.spritesheet, new URL(baseUrl, typeof window !== 'undefined' ? window.location.href : 'http://x/')).toString()
-        : manifest.spritesheet;
+      // Resolve spritesheet + sourceImage URLs relative to the manifest URL.
+      const resolveRel = (path?: string) =>
+        path && baseUrl
+          ? new URL(path, new URL(baseUrl, typeof window !== 'undefined' ? window.location.href : 'http://x/')).toString()
+          : path;
+      const spritesheet = resolveRel(manifest.spritesheet)!;
+      const sourceImage = resolveRel(manifest.sourceImage);
       api.configure({
         name: manifest.displayName ?? manifest.id,
         accent: manifest.accent,
@@ -364,6 +375,8 @@ export function createAgentPetAPI(): AgentPetAPI {
         runtime: manifest.runtime,
         richRuntimeUrl: manifest.richRuntimeUrl,
         richActions: manifest.richActions,
+        sourceImage,
+        sprites: manifest.sprites,
       });
       // If this manifest opts into the rich runtime, kick off the lazy
       // load now so awaiting loadManifest is enough — the caller doesn't
