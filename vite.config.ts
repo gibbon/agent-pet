@@ -3,57 +3,63 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
-// Three build modes share one source tree:
+// Build modes share one source tree:
 //   default        → dist/agent-pet.js              (ES, React external; for React apps)
-//   widget         → dist/agent-pet-widget.iife.js  (IIFE, vanilla DOM, no framework runtime)
-//   widget-esm     → dist/agent-pet-widget.es.js    (ES, vanilla DOM, no framework runtime)
+//   widget         → dist/agent-pet-widget.iife.js  (IIFE, vanilla DOM)
+//   widget-esm     → dist/agent-pet-widget.es.js    (ES, vanilla DOM)
+//   rich           → dist/agent-pet-rich.iife.js    (IIFE, lazy-loaded addon)
 //
-// The widget builds DON'T use React or Preact — the renderer is pure DOM.
-// Only the React subpath (default mode) brings in a framework runtime, kept
-// as a peer dep for React apps.
+// Widget + rich builds DON'T use React or Preact — the renderer is pure DOM.
+// The rich addon is *separate* so consumers only pay its weight when their
+// manifest opts in via `runtime: "rich"`.
 export default defineConfig(({ mode }) => {
   const isWidget = mode === 'widget';
   const isWidgetEsm = mode === 'widget-esm';
-  const isWidgetBuild = isWidget || isWidgetEsm;
+  const isRich = mode === 'rich';
+  const isPureDomBuild = isWidget || isWidgetEsm || isRich;
+
+  const entry = isWidget
+    ? 'src/widget/index.ts'
+    : isWidgetEsm
+    ? 'src/widget/widget-es.ts'
+    : isRich
+    ? 'src/rich/index.ts'
+    : 'src/index.ts';
+
+  const fileName = isWidget
+    ? 'agent-pet-widget'
+    : isWidgetEsm
+    ? 'agent-pet-widget.es'
+    : isRich
+    ? 'agent-pet-rich'
+    : 'agent-pet';
+
+  const iife = isWidget || isRich;
 
   return {
     plugins: [
-      // The React plugin is only needed for the default (React component) build.
-      // Widget builds enter through src/widget/{index,widget-es}.ts which import
-      // no JSX, so the plugin would be inert — we omit it for cleanliness.
-      ...(!isWidgetBuild ? [react()] : []),
-      // Generate .d.ts only on the main build — the widget builds reuse them.
-      ...(!isWidgetBuild ? [dts({ include: ['src'], entryRoot: 'src' })] : []),
+      ...(!isPureDomBuild ? [react()] : []),
+      // Generate .d.ts only on the main build — the widget/rich builds reuse them.
+      ...(!isPureDomBuild ? [dts({ include: ['src'], entryRoot: 'src' })] : []),
     ],
     build: {
       sourcemap: true,
       lib: {
-        entry: resolve(
-          __dirname,
-          isWidget
-            ? 'src/widget/index.ts'
-            : isWidgetEsm
-            ? 'src/widget/widget-es.ts'
-            : 'src/index.ts',
-        ),
-        name: 'AgentPet',
-        fileName: isWidget
-          ? 'agent-pet-widget'
-          : isWidgetEsm
-          ? 'agent-pet-widget.es'
-          : 'agent-pet',
-        formats: isWidget ? ['iife'] : ['es'],
+        entry: resolve(__dirname, entry),
+        name: isRich ? 'AgentPetRich' : 'AgentPet',
+        fileName,
+        formats: iife ? ['iife'] : ['es'],
       },
       rollupOptions: {
-        external: isWidgetBuild ? [] : ['react', 'react-dom', 'react/jsx-runtime'],
+        external: isPureDomBuild ? [] : ['react', 'react-dom', 'react/jsx-runtime'],
         output: {
-          globals: isWidgetBuild ? {} : { react: 'React', 'react-dom': 'ReactDOM' },
+          globals: isPureDomBuild ? {} : { react: 'React', 'react-dom': 'ReactDOM' },
           assetFileNames: (asset) =>
             asset.name?.endsWith('.css') ? 'pet.css' : 'assets/[name]-[hash][extname]',
         },
       },
       outDir: 'dist',
-      emptyOutDir: !isWidgetBuild,
+      emptyOutDir: !isPureDomBuild,
       copyPublicDir: false,
     },
   };

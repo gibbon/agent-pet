@@ -34,6 +34,15 @@ export interface PetCustom {
   /** Remap default WidgetStates (idle, thinking, etc.) to action ids in
    *  the actions map. */
   stateMap?: import('./manifest').StateMap;
+  /** When `'rich'`, the widget triggers a lazy import of the rich runtime
+   *  on next mount/configure. `'basic'` or unset = built-in renderer only. */
+  runtime?: 'basic' | 'rich';
+  /** URL of the rich runtime bundle. Defaults to a sibling of the base
+   *  widget (`./agent-pet-rich.iife.js`) but can be pinned for self-hosted
+   *  setups. */
+  richRuntimeUrl?: string;
+  /** Stage-space rich actions. Played by the rich runtime when present. */
+  richActions?: Record<string, import('./manifest').RichAction>;
 }
 
 export interface PetConfig {
@@ -98,6 +107,9 @@ export interface ResolvedPet {
   atlas?: PetAtlasLayout;
   actions?: Record<string, import('./manifest').ActionSpec>;
   stateMap?: import('./manifest').StateMap;
+  runtime?: 'basic' | 'rich';
+  richRuntimeUrl?: string;
+  richActions?: Record<string, import('./manifest').RichAction>;
 }
 
 // ── Interaction states ─────────────────────────────────────────────────

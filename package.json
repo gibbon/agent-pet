@@ -1,6 +1,6 @@
 {
   "name": "agent-pet",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Tiny animated companion-pet widget for any web app. Self-hosted, no backend, ~10 KB gzip vanilla DOM. Drives 9 distinct atlas animations from a simple JS API.",
   "keywords": [
     "widget",
@@ -45,11 +45,12 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "vite build && vite build --mode widget && vite build --mode widget-esm && node scripts/sri.mjs",
+    "build": "vite build && vite build --mode widget && vite build --mode widget-esm && vite build --mode rich && node scripts/sri.mjs",
     "build:pages": "pnpm build && node scripts/build-pages.mjs",
     "build:es": "vite build",
     "build:widget": "vite build --mode widget",
     "build:widget-esm": "vite build --mode widget-esm",
+    "build:rich": "vite build --mode rich",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "vendor-pet": "node scripts/vendor-pet.mjs",

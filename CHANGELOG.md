@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.10.0 — Rich runtime: lazy-loaded addon for fancy pets
+
+Adds an opt-in **rich runtime** that consumers' bundles only download when they actually want it. The base widget stays at ~12 KB gzip; pets that declare `runtime: "rich"` in their manifest trigger a script-tag injection of the separate `agent-pet-rich.iife.js` bundle (~2.5 KB gzip), which registers itself with the base widget and takes over `play()` for any action listed in the manifest's `richActions` map.
+
+Designed so most pets pay nothing for features they don't use. A simple Ryu / Homelander / Patamon stays on the basic atlas-row renderer; a "fancy ultimate move" pet pulls in the addon on first `loadManifest()` of a rich manifest, and the bundle is browser-cached for any subsequent rich pet on the same site.
+
+- **`PetManifest.runtime`** — `'basic'` (default) or `'rich'`. Setting to `'rich'` triggers the lazy import.
+- **`PetManifest.richRuntimeUrl`** — optional CDN override; defaults to a sibling of the base bundle.
+- **`PetManifest.richActions`** — stage-space named actions invokable via `play(name)` once the addon is loaded.
+- **Schema (`core/manifest.ts`)** — `RichAction { tracks: RichTrack[], spawn: RichSpawn[], durationMs }`. Each `RichTrack` has its own atlas row + a keyframe timeline (`{ t, x, y, scaleX, scaleY, rotation, skewX, skewY, alpha, flipH, easing }`). Keyframes interpolate; `easing: "step"` gives discrete per-frame control.
+- **Projectile path types** — `straight | parabolic | bezier (quadratic or cubic) | boomerang`. Path eval lives in the addon; control points are stage-space pixels relative to the pet anchor.
+- **Particle emitters** — count + lifetime + velocity (with spread cone) + gravity + size/alpha interpolation + optional sprite. v0 uses DOM divs; can swap to canvas-2D if perf becomes an issue.
+- **`AgentPet.registerRichRuntime(impl)`** — the contract the lazy-loaded addon uses to register. Consumers don't call this directly.
+
+Bundle sizes:
+- `agent-pet-widget.iife.js` 37.9 KB raw / **11.7 KB gzip** (up from 36.5 KB / 11.0 KB — well within the 15 KB ceiling)
+- `agent-pet-rich.iife.js` 5.65 KB raw / **2.43 KB gzip** (separate, lazy-loaded only when needed)
+
+Backwards compatible: pets without `runtime: "rich"` are untouched.
+
 ## v0.9.0 — Pet manifests: semantic actions + projectiles
 
 Adds a manifest format that bundles a custom atlas with named actions and optional projectile spawns. Pets that ship a manifest can declare moves like `hadouken` (which fires a fireball that flies across the screen) or `shoryuken` (which extends the sprite well above its cell), invokable via `play('hadouken')` rather than being constrained to the original 9 `WidgetState`s and the Codex 8×9 layout.

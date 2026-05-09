@@ -1,8 +1,40 @@
 import type { PetAtlasLayout } from '../core/types';
-import type { ActionSpec, PetManifest, StateMap } from '../core/manifest';
+import type { ActionSpec, PetManifest, RichAction, StateMap } from '../core/manifest';
 
 export type { PetAtlasLayout, PetAtlasRowDef } from '../core/types';
-export type { ActionSpec, ProjectileSpec, PetManifest, StateMap } from '../core/manifest';
+export type {
+  ActionSpec, ProjectileSpec, PetManifest, StateMap,
+  RichAction, RichTrack, RichKeyframe, RichSpawn, RichPath,
+  ParticleEmitter, StagePoint, Easing,
+} from '../core/manifest';
+
+/** What the lazy-loaded rich runtime registers with the base widget. The
+ *  base widget calls `playAction` when consumers invoke `play(name)` and
+ *  `name` is in the manifest's `richActions`. `anchor` is a stable DOM
+ *  element the rich renderer can use to position its overlay relative to
+ *  the pet's on-screen location. */
+export interface RichRuntime {
+  /** Play a named rich action. Returns a promise that resolves when the
+   *  action's animation has completed (so the base widget can revert
+   *  state afterward). */
+  playAction(name: string, action: RichAction, ctx: RichRuntimeContext): Promise<void>;
+  /** Optional: stop all in-flight actions immediately. Called on unmount. */
+  destroy?(): void;
+}
+
+/** Information passed to the rich runtime when it plays an action. */
+export interface RichRuntimeContext {
+  /** The DOM element representing the pet on-screen — the rich renderer
+   *  uses this to anchor its overlay (it can read getBoundingClientRect()
+   *  to know where on the page to draw). */
+  anchor: HTMLElement;
+  /** The pet's spritesheet URL — same texture the rich runtime samples. */
+  imageUrl: string;
+  /** The pet's atlas layout — needed to compute UVs for atlas-row sprites. */
+  atlas: PetAtlasLayout;
+  /** Pet's display size in pixels. */
+  size: number;
+}
 
 /** Standard widget states (the original 9). Pets without a manifest use only
  *  these. Pets with a manifest can also accept any action name registered
@@ -62,6 +94,16 @@ export interface ConfigureOptions {
    *  Lets a manifest re-route the standard states without consumers
    *  changing their setState() calls. */
   stateMap?: StateMap;
+  /** Switch to the rich runtime for this pet. Triggers a lazy import of
+   *  the rich runtime bundle on next configure(). */
+  runtime?: 'basic' | 'rich';
+  /** URL of the rich runtime bundle (defaults to a sibling of the base
+   *  widget). Consumers can pin to a specific version for self-hosted
+   *  setups. */
+  richRuntimeUrl?: string;
+  /** Stage-space rich actions invokable via play(name). Played by the
+   *  rich runtime when present. Ignored when `runtime !== 'rich'`. */
+  richActions?: Record<string, RichAction>;
   /** Show a chat input under the speech bubble. On Enter, the input fires a
    *  `userMessage` event with the typed text. Consumers wire this to their
    *  own backend (LLM, helpdesk, custom) and call `say(reply)` to display
@@ -107,7 +149,14 @@ export interface AgentPetAPI {
    *  the change event. If the pet hasn't been mounted yet, call mount()
    *  afterward and the overlay will pick the manifest up via loadConfig.
    *  Calling order matters less in practice — both `mount(); loadManifest(url)`
-   *  and `loadManifest(url); mount()` produce the same end state. */
+   *  and `loadManifest(url); mount()` produce the same end state.
+   *
+   *  Rich runtime: if the manifest has `runtime: "rich"`, this method
+   *  triggers a one-time lazy import of the rich runtime bundle. The
+   *  promise resolves only after the rich runtime has registered itself,
+   *  so awaiting loadManifest is enough to guarantee rich actions are
+   *  ready to play. The first rich pet pays a network round-trip; cached
+   *  for every subsequent rich pet on the page. */
   loadManifest(source: PetManifest | string): Promise<void>;
   /** Wire DOM events (form submit, page load, external links, etc.) to pet
    *  state changes. Replaces any previous observe() call — pass {} to disable
@@ -133,12 +182,10 @@ export interface AgentPetAPI {
   readonly hidden: boolean;
 }
 
-/**
- * Registry-style API attached to `window.AgentPet`. Behaves like a single
- * AgentPetAPI for backward compatibility (setState, play, say, etc. operate
- * on a default 'main' pet), but adds methods for managing multiple named
- * pets on one page.
- */
+/** Registry-style API attached to `window.AgentPet`. Singleton-shaped for
+ *  back-compat (setState/play/say etc forward to a default 'main' pet) plus
+ *  multi-pet management (`create`/`get`/`list`/`remove`) and the rich
+ *  runtime registration hook. */
 export interface AgentPetRegistry extends AgentPetAPI {
   /** Create a new pet with the given id, mount it, and return its API.
    *  Each pet has its own storageKey (defaults to `agent-pet:config:<id>`)
@@ -157,4 +204,10 @@ export interface AgentPetRegistry extends AgentPetAPI {
    *  from the multi-pet registry above — these manage URL resolution and
    *  catalog fetching for `data-<id>-pet="..."` and the community tab. */
   readonly providers: import('../core/providers/types').PetProviderRegistry;
+  /** Called by the lazy-loaded rich runtime addon on script execution.
+   *  Consumers don't call this directly — it's the contract between the
+   *  rich addon bundle and the base widget. Once registered, any pet
+   *  whose manifest declares `runtime: "rich"` routes its play() calls
+   *  for `richActions` through the addon. */
+  registerRichRuntime(impl: RichRuntime): void;
 }

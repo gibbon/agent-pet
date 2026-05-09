@@ -8,6 +8,18 @@
 // override the default state→row mapping for any state listed in
 // stateMap, and play(actionName) becomes available for every key in
 // the actions map.
+//
+// ── Runtime tiers ──
+// `runtime: "basic"` (default, ~37 KB widget) — atlas-row playback, simple
+// linear projectiles, jump arc, scale.
+// `runtime: "rich"` — opt-in, lazy-loaded addon. Adds:
+//   • per-frame keyframed transforms (position/scale/rotation/skew/crop/alpha)
+//   • parametric projectile paths (straight/parabolic/bezier/boomerang)
+//   • particle emitters
+//   • multi-track actions (one action plays N sprites in parallel)
+// The base widget triggers a dynamic import of the rich runtime when it
+// encounters `runtime: "rich"`. Codex / simple pets never download the
+// rich bundle.
 
 import type { PetAtlasLayout } from './types';
 
@@ -84,6 +96,159 @@ export interface PetManifest {
   actions?: Record<string, ActionSpec>;
   /** Remap the 9 default states to action ids in this manifest. */
   stateMap?: StateMap;
+  /** Which runtime to render this pet with. 'basic' (default) uses the
+   *  built-in atlas renderer. 'rich' triggers a lazy import of the rich
+   *  runtime addon — required when this manifest uses richActions, paths,
+   *  or particles. */
+  runtime?: 'basic' | 'rich';
+  /** Override URL the base widget uses to lazy-load the rich runtime. By
+   *  default the widget loads it from the same /vX.Y/ bucket the base
+   *  bundle was served from. Set this for self-hosted / pinned setups. */
+  richRuntimeUrl?: string;
+  /** Stage-space named actions for the rich runtime. Each action defines
+   *  N tracks (sprites animating in parallel) plus optional spawns and
+   *  particle emitters. The base runtime ignores these — they only apply
+   *  when `runtime: "rich"`. */
+  richActions?: Record<string, RichAction>;
+}
+
+// ─── Rich runtime types ──────────────────────────────────────────────
+// These types are emitted by the editor's rich-mode and consumed by the
+// rich runtime addon. Schema is deliberately keyframe-based (rather than
+// per-frame) because actions can be 24+ frames long — describing every
+// frame would be tedious. Frames between keyframes are interpolated.
+
+/** A 2D point in stage-space pixels. The pet anchor (default sprite
+ *  position on screen) is the origin. */
+export interface StagePoint {
+  x: number;
+  y: number;
+}
+
+/** Easing curve names supported between keyframes. */
+export type Easing =
+  | 'linear'        // straight interpolation
+  | 'step'          // hold value until next keyframe (no interpolation)
+  | 'ease-in'       // quadratic ease-in
+  | 'ease-out'      // quadratic ease-out
+  | 'ease-in-out'   // quadratic both
+  | 'bezier';       // user-supplied control points
+
+/** A single keyframe on a track's timeline. `t` is in [0, 1] — fraction of
+ *  the action's total duration. Any field is optional; missing fields
+ *  inherit from the previous keyframe (or the track's default). */
+export interface RichKeyframe {
+  /** Normalised time within the action, [0, 1]. */
+  t: number;
+  /** Stage-space position relative to the pet anchor. */
+  x?: number;
+  y?: number;
+  scaleX?: number;
+  scaleY?: number;
+  /** Rotation in degrees, clockwise. */
+  rotation?: number;
+  /** Skew (degrees) — rare but supports leans / motion smears. */
+  skewX?: number;
+  skewY?: number;
+  /** Crop a portion of the source frame off the rendered sprite (px). */
+  cropTop?: number;
+  cropBottom?: number;
+  cropLeft?: number;
+  cropRight?: number;
+  /** Mirror the sprite horizontally for this keyframe. */
+  flipH?: boolean;
+  /** Opacity, [0, 1]. */
+  alpha?: number;
+  /** Easing into THIS keyframe (i.e., from the previous one). */
+  easing?: Easing;
+  /** Bezier control points if `easing: "bezier"`. Unit-cube coordinates,
+   *  same as CSS cubic-bezier(x1, y1, x2, y2). */
+  bezier?: [number, number, number, number];
+}
+
+/** A track is one sprite layer in an action — its own atlas row, its own
+ *  timeline of keyframes. Multiple tracks let a single action animate two
+ *  sprites at once (e.g. character + glowing aura). */
+export interface RichTrack {
+  /** Atlas row id whose frames are sourced. Frame index advances over the
+   *  track's own pacing (fps) — independent of action duration. */
+  row: string;
+  /** Override row fps for this track. Defaults to the row's atlas fps. */
+  fps?: number;
+  /** How many times the row's frames loop within the action. Default 1.
+   *  Use `loops: 0` to hold the last frame after one play. */
+  loops?: number;
+  /** Track keyframes, time-ordered. */
+  keyframes: RichKeyframe[];
+  /** z-index within the action — higher renders in front. Default 0. */
+  z?: number;
+}
+
+/** Path types for projectile spawns. */
+export type RichPath =
+  | { type: 'straight'; to: StagePoint }
+  | { type: 'parabolic'; to: StagePoint; peakHeight: number }
+  | { type: 'bezier'; controlPoints: StagePoint[] }   // 2 = quadratic, 3 = cubic
+  | { type: 'boomerang'; to: StagePoint; arcHeight?: number }; // out and back
+
+/** A spawn event fires at a specific time within the action — projectile,
+ *  burst of particles, or sound (sound TBD). */
+export interface RichSpawn {
+  /** Normalised time within the action, [0, 1]. */
+  t: number;
+  type: 'projectile' | 'particles';
+  /** Stage-space spawn origin relative to pet anchor. */
+  origin?: StagePoint;
+  /** For type: 'projectile' — atlas row for the projectile sprite. */
+  row?: string;
+  /** Total flight time in ms. */
+  durationMs?: number;
+  /** Path definition. */
+  path?: RichPath;
+  /** Sprite size at flight start. */
+  size?: number;
+  /** Optional terminal scale — the projectile grows or shrinks during flight. */
+  endSize?: number;
+  /** For type: 'particles' — emitter spec. */
+  emitter?: ParticleEmitter;
+}
+
+/** A particle emitter that fires N short-lived sprites with random
+ *  velocities, sizes, and lifetimes. Particles render in 2D stage-space. */
+export interface ParticleEmitter {
+  /** Number of particles to emit at the spawn moment. Use a small range
+   *  for varied bursts. */
+  count: number;
+  /** Particle lifetime, ms. */
+  lifetimeMs: number;
+  /** Velocity per particle: a base direction with optional spread cone. */
+  velocity: { x: number; y: number; spreadDeg?: number };
+  /** Constant gravity applied to particle velocity over its lifetime
+   *  (px/s²). Useful for "sparks" that fall. */
+  gravity?: number;
+  /** Starting and ending size (px). Linearly interpolated. */
+  sizeStart: number;
+  sizeEnd?: number;
+  /** Starting and ending alpha. Linearly interpolated. */
+  alphaStart?: number;
+  alphaEnd?: number;
+  /** A solid color (hex) or a sprite to render each particle as. If both,
+   *  sprite wins; the color tints. */
+  color?: string;
+  spriteRow?: string;
+}
+
+/** A rich action — N tracks playing in parallel, plus optional spawns. */
+export interface RichAction {
+  /** Total action duration, ms. Tracks' keyframes' `t` values map into
+   *  this duration. */
+  durationMs: number;
+  /** Optional speech bubble shown while the action plays. */
+  say?: string;
+  /** Sprite tracks animating in parallel. */
+  tracks: RichTrack[];
+  /** Spawns (projectiles + particle bursts) timed within the action. */
+  spawn?: RichSpawn[];
 }
 
 /** Acceptable schemes for `spritesheet`. Excludes `javascript:`, `data:`,

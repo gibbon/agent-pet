@@ -39,6 +39,9 @@ function resolveCustomPet(c: PetCustom): ResolvedPet {
     atlas: sanitizeAtlas(c.atlas),
     actions: c.actions,
     stateMap: c.stateMap,
+    runtime: c.runtime,
+    richRuntimeUrl: c.richRuntimeUrl,
+    richActions: c.richActions,
   };
 }
 

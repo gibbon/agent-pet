@@ -3,7 +3,7 @@
 // etc operate on a 'main' pet) AND exposes create/get/list/remove for
 // managing multiple named pets on one page.
 
-import { createAgentPetAPI } from './mount';
+import { createAgentPetAPI, setRichRuntime } from './mount';
 import { defaultProviderRegistry } from '../core/providers/registry';
 import type {
   AgentPetAPI,
@@ -14,6 +14,7 @@ import type {
   PetActionName,
   PetManifest,
   PlayOptions,
+  RichRuntime,
   SayOptions,
   WidgetEventName,
 } from './api';
@@ -93,6 +94,13 @@ export function createRegistry(): AgentPetRegistry {
     },
     // Pet source providers (codex-pets.net, j20 hatchery, custom).
     providers: defaultProviderRegistry,
+
+    // ── Rich runtime registration ──────────────────────────────
+    // Called by the lazy-loaded rich addon's IIFE entry. The addon
+    // bundle runs as a top-level script and grabs window.AgentPet to
+    // call this. Once set, any pet whose manifest declares richActions
+    // routes its play(name) calls through the registered impl.
+    registerRichRuntime: (impl: RichRuntime) => setRichRuntime(impl),
   };
 
   return registry;

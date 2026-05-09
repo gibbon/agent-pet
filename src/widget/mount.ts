@@ -7,7 +7,10 @@ import { defaultPetAdapter } from '../core/adapters/default';
 import { DEFAULT_PET_CONFIG, defaultCustomPet, preferredRowId } from '../core/pets';
 import { parsePetManifest, type PetManifest } from '../core/manifest';
 import { migratePetConfig, type PetConfig } from '../core/types';
-import type { AgentPetAPI, ConfigureOptions, MountOptions, ObserveOptions, PetActionName, PlayOptions, SayOptions, WidgetEventName, WidgetState } from './api';
+import type {
+  AgentPetAPI, ConfigureOptions, MountOptions, ObserveOptions,
+  PetActionName, PlayOptions, RichRuntime, SayOptions, WidgetEventName, WidgetState,
+} from './api';
 import { PetOverlayElement } from './overlay';
 import { SpeechQueue } from './queue';
 import { attachObservers } from './observer';
@@ -20,6 +23,55 @@ import { spawnProjectile } from './projectile';
 import petCss from '../react/pet.css?inline';
 
 const CONFIG_CHANGED_EVENT = 'agent-pet:config-changed';
+
+// ─── Rich runtime singleton ──────────────────────────────────────────
+// Module-level so a single addon load serves every pet on the page. The
+// addon (a separate bundle) calls AgentPet.registerRichRuntime(impl) on
+// script execution, which forwards to setRichRuntime() below. Concurrent
+// loadManifest() calls share one in-flight promise so we never inject
+// the script tag twice.
+
+let richRuntime: RichRuntime | null = null;
+let richLoadPromise: Promise<RichRuntime> | null = null;
+let richLoadedFromUrl: string | null = null;
+
+/** Called by the registry's registerRichRuntime() — the rich addon's
+ *  entry point ultimately reaches here. */
+export function setRichRuntime(impl: RichRuntime): void {
+  richRuntime = impl;
+}
+
+function defaultRichRuntimeUrl(): string {
+  // Best-effort default: the rich bundle ships next to the base IIFE on
+  // the same CDN bucket. If the consumer didn't specify richRuntimeUrl
+  // and we can find the base bundle's <script> tag, swap the filename.
+  if (typeof document === 'undefined') return '';
+  const base = document.querySelector<HTMLScriptElement>('script[src*="agent-pet-widget"]');
+  if (base?.src) return base.src.replace(/agent-pet-widget(\.iife)?\.js/, 'agent-pet-rich$1.js');
+  return '';
+}
+
+function ensureRichRuntime(url: string | undefined): Promise<RichRuntime> {
+  if (richRuntime) return Promise.resolve(richRuntime);
+  const resolved = url || defaultRichRuntimeUrl();
+  if (!resolved) return Promise.reject(new Error('No rich runtime URL — pass richRuntimeUrl in the manifest'));
+  if (richLoadPromise && richLoadedFromUrl === resolved) return richLoadPromise;
+  richLoadedFromUrl = resolved;
+  richLoadPromise = new Promise<RichRuntime>((resolve, reject) => {
+    if (typeof document === 'undefined') { reject(new Error('No document')); return; }
+    const s = document.createElement('script');
+    s.src = resolved;
+    s.async = true;
+    s.onload = () => {
+      // If the addon ran but didn't register, surface a clear error.
+      if (richRuntime) resolve(richRuntime);
+      else reject(new Error(`Rich runtime at ${resolved} loaded but did not register`));
+    };
+    s.onerror = () => reject(new Error(`Failed to load rich runtime: ${resolved}`));
+    document.head.appendChild(s);
+  });
+  return richLoadPromise;
+}
 
 function loadConfig(key: string): PetConfig {
   if (typeof window === 'undefined') return { ...DEFAULT_PET_CONFIG };
@@ -178,9 +230,29 @@ export function createAgentPetAPI(): AgentPetAPI {
       if (playRevertTimer) clearTimeout(playRevertTimer);
       clearActionSpawnTimers();
       overlay?.endAction();
+      const cfg = loadConfig(storageKey);
+      // Rich-runtime path: the action is in richActions and the addon has
+      // registered itself. Kick off async playback and return immediately —
+      // the rich runtime owns its own state machine and revert.
+      const richSpec = cfg.custom.richActions?.[action];
+      if (richSpec && richRuntime && overlay && cfg.custom.imageUrl && cfg.custom.atlas) {
+        const ctx = {
+          anchor: overlay.getRoot(),
+          imageUrl: cfg.custom.imageUrl,
+          atlas: cfg.custom.atlas,
+          size: 96,
+        };
+        const fns = listeners.get('stateChange');
+        if (fns) for (const fn of fns) fn(action);
+        if (richSpec.say) queue.push(richSpec.say, {});
+        Promise.resolve(richRuntime.playAction(action, richSpec, ctx)).catch((err) => {
+          // Rich runtime errors shouldn't crash the host page; log and revert.
+          console.warn('[agent-pet] rich action failed:', err);
+        });
+        return;
+      }
       // Look up a manifest action: if found, drive the row + spawns + expand
       // directly. Otherwise fall back to the WidgetState code path.
-      const cfg = loadConfig(storageKey);
       const actionSpec = cfg.custom.actions?.[action];
       if (actionSpec && overlay) {
         const fps = actionSpec.fps ?? overlay.rowFps(actionSpec.row) ?? 6;
@@ -236,6 +308,7 @@ export function createAgentPetAPI(): AgentPetAPI {
         const customPatch: Record<string, unknown> = {
           name: opts.name, glyph: opts.glyph, accent: opts.accent, imageUrl: opts.imageUrl,
           actions: opts.actions, stateMap: opts.stateMap,
+          runtime: opts.runtime, richRuntimeUrl: opts.richRuntimeUrl, richActions: opts.richActions,
         };
         if (opts.atlas) customPatch.atlas = opts.atlas;
         else if (opts.useCodexAtlas) customPatch.atlas = CODEX_ATLAS_LAYOUT;
@@ -283,7 +356,16 @@ export function createAgentPetAPI(): AgentPetAPI {
         atlas: manifest.atlas,
         actions: manifest.actions,
         stateMap: manifest.stateMap,
+        runtime: manifest.runtime,
+        richRuntimeUrl: manifest.richRuntimeUrl,
+        richActions: manifest.richActions,
       });
+      // If this manifest opts into the rich runtime, kick off the lazy
+      // load now so awaiting loadManifest is enough — the caller doesn't
+      // have to chase a separate "ready" event before invoking play().
+      if (manifest.runtime === 'rich') {
+        await ensureRichRuntime(manifest.richRuntimeUrl);
+      }
     },
     observe(opts: ObserveOptions) {
       if (detachObservers) { detachObservers(); detachObservers = null; }
