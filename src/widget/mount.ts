@@ -236,8 +236,9 @@ export function createAgentPetAPI(): AgentPetAPI {
       // the rich runtime owns its own state machine and revert.
       const richSpec = cfg.custom.richActions?.[action];
       if (richSpec && richRuntime && overlay && cfg.custom.imageUrl && cfg.custom.atlas) {
+        const ovRef = overlay;
         const ctx = {
-          anchor: overlay.getRoot(),
+          getAnchorPos: () => ovRef.spriteCenter(),
           imageUrl: cfg.custom.imageUrl,
           atlas: cfg.custom.atlas,
           size: 96,
@@ -245,10 +246,14 @@ export function createAgentPetAPI(): AgentPetAPI {
         const fns = listeners.get('stateChange');
         if (fns) for (const fn of fns) fn(action);
         if (richSpec.say) queue.push(richSpec.say, {});
-        Promise.resolve(richRuntime.playAction(action, richSpec, ctx)).catch((err) => {
-          // Rich runtime errors shouldn't crash the host page; log and revert.
-          console.warn('[agent-pet] rich action failed:', err);
-        });
+        // Hide the base atlas sprite while the rich action plays — its
+        // tracks render the pose, so the base would otherwise show through
+        // underneath. Restored when the action's promise settles (success
+        // or error).
+        ovRef.setSpriteVisible(false);
+        Promise.resolve(richRuntime.playAction(action, richSpec, ctx))
+          .catch((err) => { console.warn('[agent-pet] rich action failed:', err); })
+          .finally(() => { ovRef.setSpriteVisible(true); });
         return;
       }
       // Look up a manifest action: if found, drive the row + spawns + expand

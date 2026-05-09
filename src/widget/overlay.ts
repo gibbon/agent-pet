@@ -383,6 +383,14 @@ export class PetOverlayElement {
     }
   }
 
+  /** Show or hide the base pet sprite without unmounting it. Used by the
+   *  rich runtime so the base atlas-row sprite doesn't render alongside
+   *  the rich track. Visibility:hidden preserves layout/position so the
+   *  pet pops back exactly where it was. */
+  setSpriteVisible(visible: boolean): void {
+    this.spriteWrapper.style.visibility = visible ? '' : 'hidden';
+  }
+
   /** Override the row currently being played, used by play() when a manifest
    *  action wants a specific row (and optional vertical expansion) regardless
    *  of the standard interaction-→-row mapping. Pair with endAction() to revert. */
