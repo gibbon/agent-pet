@@ -388,7 +388,13 @@ export class PetOverlayElement {
    *  the rich track. Visibility:hidden preserves layout/position so the
    *  pet pops back exactly where it was. */
   setSpriteVisible(visible: boolean): void {
-    this.spriteWrapper.style.visibility = visible ? '' : 'hidden';
+    // Use opacity (not visibility) so the wrapper still receives pointer
+    // events while a rich action is playing — otherwise the user can't
+    // grab the pet to drag it during a long-running action (e.g. an
+    // ambient idle loop on a source-frame preset). The rich runtime's
+    // sprites have `pointer-events: none`, so without an interactive
+    // base wrapper the click goes straight through to the page.
+    this.spriteWrapper.style.opacity = visible ? '' : '0';
   }
 
   /** Override the row currently being played, used by play() when a manifest

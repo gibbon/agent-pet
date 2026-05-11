@@ -530,25 +530,57 @@ function actionUsesSourceFrames(action: RichAction): boolean {
 }
 
 export function createRichRuntime(): RichRuntime {
+  // The runtime serves a single pet at a time. Track the current action
+  // so a fresh playAction() can cancel any in-flight one — otherwise an
+  // ambient idle loop and a user-triggered click visibly layer on top of
+  // each other (the previous action's track sprites stay in the stage
+  // until ITS durationMs expires). Spawns (projectiles + particles) are
+  // intentionally NOT cancelled — they finish their own lifetime so an
+  // interrupted hadouken's fireball still reaches the screen edge.
+  let cancelActive: (() => void) | null = null;
   return {
     async playAction(name, action, ctx) {
+      // Cancel any previous action's tick + tear down its track sprites
+      // before starting the new one.
+      if (cancelActive) {
+        cancelActive();
+        cancelActive = null;
+      }
       // Preload source-image dims if any track or spawn uses bbox-crop
       // rendering. One round-trip the first time we see a given URL; the
       // result is cached in the module-level sourceDims map.
       if (actionUsesSourceFrames(action)) {
         await ensureSourceDims(ctx.sourceImage);
       }
+      // The action might have already been cancelled while awaiting the
+      // image preload — bail without staging anything.
+      let cancelled = false;
       const stage = ensureStage();
       positionStage(stage, ctx);
       const startMs = performance.now();
+      // Re-position the stage every animation frame so the action's
+      // sprites follow the pet's anchor as the user drags it. Without
+      // this, a 1+ second idle action snapshots the start position and
+      // lags behind the drag (sprites visibly snap to a new spot every
+      // time the action loops). Cheap — two style writes per frame.
       const renderers = action.tracks.map((t) => createTrackRenderer(t, action, ctx, stage));
       const pendingSpawns = (action.spawn ?? []).slice().sort((a, b) => a.t - b.t);
+      // Expose a cancel function on the closure so the next playAction
+      // can tear this one down. Tick loop also checks `cancelled` each
+      // frame so a mid-tick cancel stops cleanly.
+      cancelActive = () => {
+        cancelled = true;
+        for (const r of renderers) r.cleanup();
+      };
+      const myCancel = cancelActive;
       return new Promise<void>((resolve) => {
         const tick = () => {
+          if (cancelled) { resolve(); return; }
+          // Track the pet's current anchor each frame (drag-friendly).
+          positionStage(stage, ctx);
           const now = performance.now();
           const elapsed = now - startMs;
           const t = elapsed / action.durationMs;
-          // Fire spawns that have come due
           while (pendingSpawns.length && pendingSpawns[0].t <= Math.min(1, t)) {
             const sp = pendingSpawns.shift()!;
             if (sp.type === 'projectile') spawnProjectile(sp, ctx, stage);
@@ -556,6 +588,9 @@ export function createRichRuntime(): RichRuntime {
           }
           if (t >= 1) {
             for (const r of renderers) r.cleanup();
+            // Only clear the module reference if it's still us — a later
+            // action may have already overwritten it.
+            if (cancelActive === myCancel) cancelActive = null;
             resolve();
             return;
           }
