@@ -358,17 +358,36 @@ function createSourceFrameTrackRenderer(
   // Track-uniform scale — every frame renders at this same factor so
   // their bbox sizes stay proportional to one another.
   const trackScale = computeFrameSetScale(frames, ctx, ctx.size);
+  // Time-based mode: every frame has an explicit `t` (normalised 0..1
+  // within the action). We pick "most recent frame with t ≤ now". When
+  // any frame is missing `t`, we fall back to fps-cadence (legacy).
+  // Frames-by-t are sorted once so the per-tick lookup is O(log n) — but
+  // n is usually small, so a linear scan is fine.
+  const timeMode = frames.every((f) => typeof f.t === 'number');
+  const sortedByT = timeMode
+    ? frames.map((f, i) => ({ f, i })).sort((a, b) => (a.f.t! - b.f.t!))
+    : null;
   return {
     update(t: number, nowMs: number, startMs: number) {
-      const elapsedMs = nowMs - startMs;
-      const totalFramesPlayed = Math.floor((elapsedMs / 1000) * fps);
       let frameIdx: number;
-      if (loops === 0) {
-        frameIdx = Math.min(frames.length - 1, totalFramesPlayed);
+      if (timeMode && sortedByT) {
+        // Find last entry whose t ≤ current t. Default to first frame if
+        // nothing matches yet (e.g. t = 0 and the first frame's t > 0).
+        let pick = sortedByT[0].i;
+        for (const e of sortedByT) {
+          if (e.f.t! <= t) pick = e.i; else break;
+        }
+        frameIdx = pick;
       } else {
-        const totalFrames = frames.length * loops;
-        const capped = Math.min(totalFrames - 1, totalFramesPlayed);
-        frameIdx = capped % frames.length;
+        const elapsedMs = nowMs - startMs;
+        const totalFramesPlayed = Math.floor((elapsedMs / 1000) * fps);
+        if (loops === 0) {
+          frameIdx = Math.min(frames.length - 1, totalFramesPlayed);
+        } else {
+          const totalFrames = frames.length * loops;
+          const capped = Math.min(totalFrames - 1, totalFramesPlayed);
+          frameIdx = capped % frames.length;
+        }
       }
       const frame = frames[frameIdx];
       // Per-frame scale multiplier on top of the track-uniform scale —

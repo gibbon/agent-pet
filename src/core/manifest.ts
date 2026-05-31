@@ -196,6 +196,12 @@ export interface SourceFrame {
    *  bigger than the rest of the track. Useful when a source rip drew
    *  one pose at a different scale than the rest. */
   scale?: number;
+  /** Normalised time within the action [0, 1] when this frame becomes
+   *  visible. The frame is held until the next frame's `t` (or until the
+   *  action ends). If ALL frames in a track have `t`, the runtime uses
+   *  time-based lookup. If NONE do, the runtime falls back to fps cadence
+   *  (legacy behaviour). Mixed is not supported. */
+  t?: number;
 }
 
 /** Source sprite metadata embedded in the manifest. `bbox` is `[x0, y0, x1, y1]`
