@@ -363,9 +363,15 @@ function createSourceFrameTrackRenderer(
   // any frame is missing `t`, we fall back to fps-cadence (legacy).
   // Frames-by-t are sorted once so the per-tick lookup is O(log n) — but
   // n is usually small, so a linear scan is fine.
-  const timeMode = frames.every((f) => typeof f.t === 'number');
+  // (Empty `frames` arrays would vacuously satisfy `.every()` and then
+  // crash on `sortedByT[0]`; require at least one frame.)
+  const timeMode = frames.length > 0 && frames.every((f) => typeof f.t === 'number');
+  // Sort by t, with a secondary stable sort by original index — when two
+  // frames share an identical t the original order is preserved instead of
+  // the lookup picking one non-deterministically.
   const sortedByT = timeMode
-    ? frames.map((f, i) => ({ f, i })).sort((a, b) => (a.f.t! - b.f.t!))
+    ? frames.map((f, i) => ({ f, i }))
+        .sort((a, b) => (a.f.t! - b.f.t!) || (a.i - b.i))
     : null;
   return {
     update(t: number, nowMs: number, startMs: number) {
