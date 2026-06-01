@@ -11,3 +11,16 @@ public/react/
 public/widget/
 public/v*/
 public/version.json
+
+# Rich editor — build artefacts + dev server saves.
+tools/rich-editor/build/
+tools/rich-editor/saves/*.json
+tools/rich-editor/rips/
+tools/rich-editor/serve.log
+# Promoted preset content IS tracked (shared authored data) but the
+# regenerated index lives at runtime — ignore it so it doesn't churn.
+tools/rich-editor/presets/index.json
+
+# Windows NTFS alternate-data-stream metadata (created when files come
+# from a downloaded zip / browser).
+*:Zone.Identifier

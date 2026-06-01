@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Ryu — 3D Playground</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1018; color: #eee;
+    font-family: -apple-system, system-ui, sans-serif; }
+  #stage { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  /* Header */
+  .top {
+    position: fixed; top: 12px; left: 12px; right: 12px; z-index: 10;
+    display: flex; gap: 8px; pointer-events: none; align-items: flex-start;
+  }
+  .top h1 { font-size: 14px; font-weight: 600; opacity: 0.7; pointer-events: auto; }
+  .top a { color: #aef; text-decoration: none; pointer-events: auto; font-size: 13px; }
+
+  /* HUD bottom buttons */
+  .hud {
+    position: fixed; left: 0; right: 0; bottom: max(12px, env(safe-area-inset-bottom));
+    display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; padding: 0 8px;
+    z-index: 10;
+  }
+  .hud button {
+    background: rgba(40, 30, 30, 0.85); color: #eee;
+    border: 1px solid rgba(231, 76, 60, 0.5); border-radius: 6px;
+    padding: 12px 16px; font-size: 14px; font-weight: 600;
+    cursor: pointer; backdrop-filter: blur(8px);
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    min-height: 44px;
+  }
+  .hud button:active { background: rgba(231, 76, 60, 0.6); transform: scale(0.96); }
+  .hud .label {
+    flex: 1 1 100%;
+    text-align: center; opacity: 0.6; font-size: 11px; padding-bottom: 4px;
+  }
+
+  /* Onboarding tip */
+  .tip {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.7); border: 1px solid #444; border-radius: 8px;
+    padding: 16px 20px; font-size: 13px; line-height: 1.5; max-width: 320px;
+    backdrop-filter: blur(8px); z-index: 20; text-align: center;
+    transition: opacity 400ms; pointer-events: none;
+  }
+  .tip.hidden { opacity: 0; }
+  .tip kbd {
+    background: #2a2a35; padding: 1px 6px; border: 1px solid #555;
+    border-radius: 3px; font-family: ui-monospace, monospace; font-size: 11px;
+  }
+
+  #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #0b1018; color: #888; font-size: 14px; z-index: 30; transition: opacity 400ms; }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+
+  /* Save picker — slim bar near the top-right with a dropdown of every
+   * compatible save in localStorage so you can A/B variants live. */
+  .loader-bar {
+    position: fixed; top: 12px; right: 12px; z-index: 11;
+    pointer-events: auto;
+  }
+  .loader-bar select {
+    background: rgba(11, 16, 24, 0.85); color: #eee;
+    border: 1px solid #2a3550; border-radius: 4px;
+    padding: 5px 8px; font-size: 12px; max-width: 280px;
+    backdrop-filter: blur(8px);
+  }
+</style>
+<!-- Shared starter presets — same source as the editor and pet-tester.
+     Loads as a plain script so window.STARTER_PRESETS is set before the
+     ES-module body runs and reads it. -->
+<script src="/presets.js"></script>
+</head>
+<body>
+
+<div id="stage"></div>
+<div id="loading">loading scene…</div>
+
+<div class="top">
+  <a href="/" title="Back to index">← index</a>
+  <h1>3D playground</h1>
+</div>
+
+<div class="tip" id="tip">
+  <strong>Tap the ground</strong> to walk Ryu there, or use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>/arrow keys.<br>
+  <strong>Drag</strong> to orbit the camera. <kbd>1</kbd>–<kbd>5</kbd> for moves.<br>
+  Use the buttons below for moves.
+</div>
+
+<div class="loader-bar">
+  <select id="save-picker" title="Switch the playground to a different saved manifest. Only saves whose atlas + actions block is compatible with the playground are listed.">
+    <option value="">Default (Ryu /ryu.json)</option>
+  </select>
+</div>
+
+<div class="hud">
+  <span class="label">moves — keys 1·2·3·4·5</span>
+  <button data-action="hadouken">Hadouken</button>
+  <button data-action="shoryuken">Shoryuken</button>
+  <button data-action="kick">Kick</button>
+  <button data-action="spinkick">Spin Kick</button>
+  <button data-action="taunt">Taunt</button>
+</div>
+
+<script type="module">
+import * as THREE from 'https://esm.sh/three@0.163.0';
+import { OrbitControls } from 'https://esm.sh/three@0.163.0/addons/controls/OrbitControls.js';
+
+// ─── Scene + camera + renderer ───────────────────────────────────────
+const scene = new THREE.Scene();
+const fogColor = 0x141a26;
+scene.background = new THREE.Color(fogColor);
+scene.fog = new THREE.Fog(fogColor, 14, 32);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 4.5, 9);
+
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.getElementById('stage').appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1, 0);
+controls.maxPolarAngle = Math.PI / 2 - 0.05;
+controls.minDistance = 4;
+controls.maxDistance = 22;
+controls.enablePan = false;
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+
+// ─── Ground (grid floor for depth cues) ──────────────────────────────
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(60, 60),
+  new THREE.MeshBasicMaterial({ color: 0x18202c }),
+);
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+const grid = new THREE.GridHelper(60, 30, 0x2a3550, 0x1c2230);
+grid.position.y = 0.01;
+scene.add(grid);
+
+// ─── Manifest + spritesheet ──────────────────────────────────────────
+// `manifest`, `baseTex`, and the derived constants below get re-bound by
+// loadManifest() when the user picks a different save from the dropdown.
+let manifest, baseTex, COLS, ROWS, ROWS_DEF, ACTIONS;
+async function loadManifest(m, sheetUrl) {
+  const tex = await new Promise((res, rej) => new THREE.TextureLoader().load(sheetUrl, (t) => {
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestFilter;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.generateMipmaps = false;
+    res(t);
+  }, undefined, rej));
+  manifest = m;
+  baseTex = tex;
+  COLS = manifest.atlas.cols;
+  ROWS = manifest.atlas.rows;
+  ROWS_DEF = manifest.atlas.rowsDef;
+  ACTIONS = manifest.actions ?? {};
+}
+function rowDef(id) { return ROWS_DEF.find(r => r.id === id); }
+// Initial bootstrap — same /ryu.json + /spritesheet.webp the playground
+// has always used. Picker can replace this at runtime.
+await loadManifest(
+  await fetch('/ryu.json').then(r => r.json()),
+  '/spritesheet.webp',
+);
+
+// Aspect of one cell: spritesheet is COLS×ROWS, total 1536x2288, so each cell
+// is 192x208. Ratio of plane height/width = 208/192 ≈ 1.083.
+const CELL_ASPECT = 208 / 192;
+
+// ─── Source-frame rip cache ─────────────────────────────────────────
+// Rich actions can source from a raw rip (sprites.json + image) instead
+// of a packed atlas. Each rip's image + bbox metadata is loaded on
+// demand and cached so swapping characters is fast on repeat visits.
+const ripCache = new Map(); // imageUrl → { tex, w, h, sprites: Map<"band.idx", bbox> }
+async function ensureSourceRip(imageUrl, spritesUrl) {
+  if (!imageUrl || !spritesUrl) return null;
+  if (ripCache.has(imageUrl)) return ripCache.get(imageUrl);
+  const [tex, sprites] = await Promise.all([
+    new Promise((res, rej) => new THREE.TextureLoader().load(imageUrl, (t) => {
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false;
+      res(t);
+    }, undefined, rej)),
+    fetch(spritesUrl).then((r) => r.json()),
+  ]);
+  const map = new Map();
+  for (const s of sprites) map.set(`${s.band}.${s.idx}`, s.bbox);
+  const entry = {
+    tex, sprites: map,
+    w: tex.image.naturalWidth, h: tex.image.naturalHeight,
+  };
+  ripCache.set(imageUrl, entry);
+  return entry;
+}
+
+/** Make a source-frame sprite. Geometry is unit-sized; mesh.scale is
+ *  written per-frame to match the bbox aspect. UV is updated in
+ *  setSourceFrame to crop the bbox out of the source image. */
+function makeSourceFrameSprite(rip, targetSize) {
+  const tex = rip.tex.clone();
+  tex.needsUpdate = true;
+  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace; tex.generateMipmaps = false;
+  const geo = new THREE.PlaneGeometry(1, 1);
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex, transparent: true, side: THREE.DoubleSide,
+    depthWrite: false, alphaTest: 0.05,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  return { mesh, tex, rip, targetSize: targetSize ?? 2.6, w: targetSize, h: targetSize, kind: 'source' };
+}
+function setSourceFrame(sprite, frame) {
+  const bbox = sprite.rip.sprites.get(`${frame.band}.${frame.idx}`);
+  if (!bbox) return;
+  const [x0, y0, x1, y1] = bbox;
+  const bw = Math.max(1, x1 - x0);
+  const bh = Math.max(1, y1 - y0);
+  const W = sprite.rip.w, H = sprite.rip.h;
+  // UV: image-Y is top-down but UV-Y is bottom-up.
+  if (frame.flipH) {
+    sprite.tex.repeat.set(-bw / W, bh / H);
+    sprite.tex.offset.set(x1 / W, 1 - y1 / H);
+  } else {
+    sprite.tex.repeat.set(bw / W, bh / H);
+    sprite.tex.offset.set(x0 / W, 1 - y1 / H);
+  }
+  // Scale mesh so the longest bbox axis = targetSize world units.
+  const longest = Math.max(bw, bh);
+  const scale = sprite.targetSize / longest;
+  sprite.w = bw * scale; sprite.h = bh * scale;
+  sprite.mesh.scale.set(sprite.w, sprite.h, 1);
+}
+/** Make an atlas-cell sprite — wraps the existing makeAtlasSprite so
+ *  rich-action tracks of either kind share the same interface. */
+function makeAtlasCellSprite(targetSize) {
+  const s = makeAtlasSprite(targetSize);
+  s.kind = 'atlas';
+  return s;
+}
+function setAtlasCellFrame(sprite, rowId, frameIdx, flipH) {
+  setFrame(sprite, rowId, frameIdx, flipH);
+}
+
+// ─── Atlas-textured plane ────────────────────────────────────────────
+function makeAtlasSprite(scale) {
+  // Each sprite gets its OWN texture clone so it can step through frames
+  // independently. The underlying image is shared.
+  const tex = baseTex.clone();
+  tex.needsUpdate = true;
+  tex.repeat.set(1 / COLS, 1 / ROWS);
+  const w = scale, h = scale * CELL_ASPECT;
+  const geo = new THREE.PlaneGeometry(w, h);
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex, transparent: true, side: THREE.DoubleSide,
+    depthWrite: false, alphaTest: 0.05,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  return { mesh, tex, w, h };
+}
+
+function setFrame(sprite, rowId, frameIdx, flipH) {
+  const r = rowDef(rowId);
+  if (!r) return;
+  // Atlas Y is from top in image-space but UV space is bottom-up.
+  const v = 1 - (r.index + 1) / ROWS;
+  if (flipH) {
+    sprite.tex.repeat.x = -1 / COLS;
+    sprite.tex.offset.set((frameIdx + 1) / COLS, v);
+  } else {
+    sprite.tex.repeat.x = 1 / COLS;
+    sprite.tex.offset.set(frameIdx / COLS, v);
+  }
+}
+
+// ─── Ryu (the player) ────────────────────────────────────────────────
+const ryu = makeAtlasSprite(2.6);
+ryu.mesh.position.set(0, ryu.h / 2, 0);
+scene.add(ryu.mesh);
+
+// State the renderer reads each frame.
+const player = {
+  state: 'idle',          // current row id being played
+  persistent: 'idle',     // row to return to after an action ends
+  facing: 'left',         // which way the sprite is flipped
+  frame: 0,
+  lastFrameTimeMs: 0,
+  actionEndsAtMs: 0,      // 0 = no action; otherwise the wall-clock when it ends
+  jump: null,             // { startMs, durMs, peak, baseY }
+  walkTarget: null,       // Vector3 the player is walking toward
+};
+
+function setRow(rowId) {
+  if (player.state === rowId) return;
+  player.state = rowId;
+  player.frame = 0;
+  player.lastFrameTimeMs = 0;
+}
+
+// Manifest's stateMap aligns with how the agent-pet widget maps the 9 default
+// states; here we just use action names directly. Walk-right/left rows have
+// flipH:false/true in the manifest because Ryu is drawn facing right by
+// default in the source. With our `facing` variable, we choose the row id.
+function rowForFacing(rowBase) {
+  // For idle/wait/etc., let the row's manifest flipH default rule apply.
+  // For walking, switch row id by direction.
+  return rowBase;
+}
+
+// ─── Animation tick ─────────────────────────────────────────────────
+function tickPlayer(nowMs) {
+  // Action end?
+  if (player.actionEndsAtMs > 0 && nowMs >= player.actionEndsAtMs) {
+    player.actionEndsAtMs = 0;
+    setRow(player.persistent);
+  }
+  // Frame stepping
+  const r = rowDef(player.state) || rowDef('idle');
+  if (!r) return;
+  const intervalMs = 1000 / Math.max(1, r.fps);
+  if (nowMs - player.lastFrameTimeMs >= intervalMs) {
+    player.lastFrameTimeMs = nowMs;
+    player.frame = (player.frame + 1) % r.frames;
+  }
+  // Determine flipH: walk rows already encode direction in row id; for
+  // everything else, flip when facing right (the source frames are flipped).
+  // Actions like hadouken/shoryuken use the manifest's row.id, which is
+  // drawn left-facing — flip when player is facing right.
+  let flipH;
+  if (player.state === 'walk-right') flipH = false;
+  else if (player.state === 'walk-left') flipH = true;
+  else flipH = player.facing === 'right' ? false : true;
+  setFrame(ryu, player.state, player.frame, flipH);
+}
+
+// ─── Movement (tap ground to walk) ───────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+function pickGround(clientX, clientY) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObject(ground);
+  return hits.length ? hits[0].point : null;
+}
+
+let pointerDownPos = null;
+let pointerDownTime = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  pointerDownPos = { x: e.clientX, y: e.clientY };
+  pointerDownTime = performance.now();
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!pointerDownPos) return;
+  const dx = e.clientX - pointerDownPos.x, dy = e.clientY - pointerDownPos.y;
+  const moved = Math.hypot(dx, dy) > 6;
+  const heldMs = performance.now() - pointerDownTime;
+  pointerDownPos = null;
+  // Treat as tap only if we didn't drag (orbit) and didn't long-press.
+  if (moved || heldMs > 600) return;
+  const p = pickGround(e.clientX, e.clientY);
+  if (p) player.walkTarget = new THREE.Vector3(p.x, ryu.h / 2, p.z);
+  hideTip();
+});
+
+function tickMovement(dtSec) {
+  if (!player.walkTarget) {
+    if (player.actionEndsAtMs === 0) {
+      player.persistent = 'idle';
+      if (player.state !== 'idle') setRow('idle');
+    }
+    return;
+  }
+  const target = player.walkTarget;
+  const dir = new THREE.Vector3(target.x - ryu.mesh.position.x, 0, target.z - ryu.mesh.position.z);
+  const dist = dir.length();
+  if (dist < 0.08) {
+    player.walkTarget = null;
+    if (player.actionEndsAtMs === 0) { player.persistent = 'idle'; setRow('idle'); }
+    return;
+  }
+  const speed = 3.4;
+  dir.normalize().multiplyScalar(Math.min(dist, speed * dtSec));
+  ryu.mesh.position.x += dir.x;
+  ryu.mesh.position.z += dir.z;
+  // Pick walk row based on the X component (camera is roughly aligned to z).
+  player.facing = dir.x < 0 ? 'left' : 'right';
+  if (player.actionEndsAtMs === 0) {
+    const row = player.facing === 'left' ? 'walk-left' : 'walk-right';
+    player.persistent = row;
+    if (player.state !== row) setRow(row);
+  }
+}
+
+// ─── Billboard the sprite to face the camera (Y-axis only) ──────────
+function tickBillboard() {
+  ryu.mesh.lookAt(camera.position.x, ryu.mesh.position.y, camera.position.z);
+}
+
+// ─── Jump arc (for SHORYUKEN) ───────────────────────────────────────
+function tickJump(nowMs) {
+  if (!player.jump) return;
+  const j = player.jump;
+  const t = (nowMs - j.startMs) / j.durMs;
+  if (t >= 1) {
+    ryu.mesh.position.y = j.baseY;
+    player.jump = null;
+    return;
+  }
+  // Sine arc from 0 to peak back to 0
+  ryu.mesh.position.y = j.baseY + Math.sin(t * Math.PI) * j.peak;
+}
+
+// ─── Projectiles (fireball flying through the scene) ────────────────
+const projectiles = [];
+function spawnFireball(originPos, dir3) {
+  const fb = makeAtlasSprite(0.9);
+  fb.mesh.position.copy(originPos);
+  fb.mesh.position.y -= 0.3;
+  scene.add(fb.mesh);
+  projectiles.push({
+    sprite: fb,
+    dir: dir3.clone().normalize(),
+    spawnMs: performance.now(),
+    lifeMs: 1500,
+    speed: 7,
+  });
+}
+function tickProjectiles(nowMs, dtSec) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    const age = nowMs - p.spawnMs;
+    if (age > p.lifeMs) {
+      scene.remove(p.sprite.mesh);
+      projectiles.splice(i, 1);
+      continue;
+    }
+    p.sprite.mesh.position.x += p.dir.x * p.speed * dtSec;
+    p.sprite.mesh.position.z += p.dir.z * p.speed * dtSec;
+    p.sprite.mesh.lookAt(camera.position.x, p.sprite.mesh.position.y, camera.position.z);
+    const r = rowDef('fireball');
+    const f = Math.floor((age / 1000) * r.fps) % r.frames;
+    setFrame(p.sprite, 'fireball', f, p.dir.x > 0);
+  }
+}
+
+// ─── Action triggers from HUD ───────────────────────────────────────
+// `play(name)` dispatches to whichever variant exists in the manifest:
+// rich-action mode (manifest.richActions[name]) takes precedence —
+// that's the format the editor authors. Falls back to legacy
+// atlas-row actions (manifest.actions[name]) for backwards-compat.
+function play(actionName) {
+  if (manifest.richActions?.[actionName]) {
+    playRichAction(actionName);
+    return;
+  }
+  const a = ACTIONS[actionName];
+  if (!a) return;
+  hideTip();
+  const r = rowDef(a.row);
+  if (!r) return;
+  const loops = a.loops ?? 1;
+  const fps = a.fps ?? r.fps;
+  const durMs = (r.frames * loops / fps) * 1000;
+  player.actionEndsAtMs = performance.now() + durMs;
+  setRow(a.row);
+  if (a.spawn) {
+    for (const sp of a.spawn) {
+      const delayMs = (sp.atFrame * 1000) / fps;
+      setTimeout(() => {
+        const dir = new THREE.Vector3(player.facing === 'left' ? -1 : 1, 0, 0);
+        const origin = ryu.mesh.position.clone().add(dir.clone().multiplyScalar(0.4));
+        spawnFireball(origin, dir);
+      }, delayMs);
+    }
+  }
+  if (a.jumpHeight) {
+    player.jump = {
+      startMs: performance.now(),
+      durMs,
+      peak: a.jumpHeight / 70,
+      baseY: ryu.h / 2,
+    };
+  }
+}
+
+// ─── Rich-action playback ───────────────────────────────────────────
+// Mirrors the rich runtime at src/rich/runtime.ts but operates on
+// THREE.Mesh sprites in 3D space. Each track becomes its own mesh that
+// follows the track's keyframes; spawns fire at sp.t * durationMs.
+//
+// Coordinate mapping: rich keyframe x/y are in 2D editor pixels. We map
+// them to 3D scene units at PX_PER_UNIT (matches the stage's SIZE=96 →
+// roughly 70 px = 1 world unit so the moves read like the stage).
+const PX_PER_UNIT = 70;
+const richActive = []; // active rich actions: { startMs, action, tracks, spawnFired, jump }
+
+function easing(t, kind) {
+  switch (kind) {
+    case 'step': return 0;
+    case 'ease-in': return t * t;
+    case 'ease-out': return 1 - (1 - t) * (1 - t);
+    case 'ease-in-out': return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    default: return t;
+  }
+}
+function lerp(a, b, t, def) {
+  if (a === undefined && b === undefined) return def;
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return a + (b - a) * t;
+}
+function sampleKeyframes(track, t) {
+  const ks = track.keyframes ?? [];
+  if (!ks.length) {
+    return { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0, alpha: 1, flipH: false };
+  }
+  let i = 0;
+  while (i < ks.length - 1 && ks[i + 1].t <= t) i++;
+  const a = ks[i];
+  const b = i < ks.length - 1 ? ks[i + 1] : a;
+  let u = 0;
+  if (b !== a) {
+    const span = b.t - a.t;
+    u = span > 0 ? Math.max(0, Math.min(1, (t - a.t) / span)) : 0;
+    u = easing(u, b.easing);
+  }
+  return {
+    x: lerp(a.x, b.x, u, 0),
+    y: lerp(a.y, b.y, u, 0),
+    scaleX: lerp(a.scaleX, b.scaleX, u, 1),
+    scaleY: lerp(a.scaleY, b.scaleY, u, 1),
+    rotation: lerp(a.rotation, b.rotation, u, 0),
+    alpha: lerp(a.alpha, b.alpha, u, 1),
+    flipH: (b.flipH === undefined ? a.flipH : b.flipH) ?? false,
+  };
+}
+
+async function playRichAction(actionName) {
+  const action = manifest.richActions[actionName];
+  if (!action) return;
+  hideTip();
+  // Lazy-load the source-frame rip if any track / spawn needs one. We
+  // need its sprites image + bbox map cached before we start ticking.
+  const needsSourceRip = (action.tracks ?? []).some((t) => t.frames?.length)
+    || (action.spawn ?? []).some((s) => s.frames?.length);
+  let sourceRip = null;
+  if (needsSourceRip) {
+    const imageUrl = manifest.sourceImage;
+    const spritesUrl = manifest.spritesUrl ?? deriveSpritesUrl(imageUrl);
+    if (imageUrl && spritesUrl) {
+      sourceRip = await ensureSourceRip(imageUrl, spritesUrl);
+    }
+  }
+  // Build a sprite per track. Atlas-row tracks reuse the player's main
+  // sprite (so the existing facing / position logic carries through).
+  // Source-frame tracks get fresh meshes positioned at the player.
+  const tracks = (action.tracks ?? []).map((track, idx) => {
+    if (track.frames?.length && sourceRip) {
+      const sp = makeSourceFrameSprite(sourceRip, 2.6);
+      sp.mesh.position.copy(ryu.mesh.position);
+      scene.add(sp.mesh);
+      return { track, sprite: sp, ownsSprite: true, idx };
+    }
+    if (track.row) {
+      // Atlas-row track — drive the main player sprite. If multiple
+      // atlas-row tracks exist (rare), only the first uses the player;
+      // others get clones.
+      if (idx === 0) return { track, sprite: ryu, ownsSprite: false, idx };
+      const sp = makeAtlasCellSprite(2.6);
+      sp.mesh.position.copy(ryu.mesh.position);
+      scene.add(sp.mesh);
+      return { track, sprite: sp, ownsSprite: true, idx };
+    }
+    return null;
+  }).filter(Boolean);
+  // Block movement only for non-ambient (user-triggered) actions —
+  // idle / walk-left / walk-right are auto-fired on a loop by
+  // ambientTick() and need keyboard movement to stay alive while they
+  // play. Setting actionEndsAtMs here would lock tickKeyboardMovement
+  // out and the pet would never respond to WASD.
+  const isAmbient = actionName === 'idle'
+                 || actionName === 'walk-left'
+                 || actionName === 'walk-right';
+  if (!isAmbient) {
+    player.actionEndsAtMs = performance.now() + action.durationMs;
+  }
+  // Only one rich action plays at a time on the player. Tear down any
+  // active instances first so a new action doesn't visually overlap
+  // the previous one (e.g. clicking hadouken while ambient idle is
+  // running would otherwise leave the idle sprite under the hadouken).
+  // Spawned projectiles + particles live in their own pools and keep
+  // animating until they expire — they're independent of this swap.
+  killActiveRichTracks();
+  const inst = {
+    actionName, action, tracks, sourceRip,
+    startMs: performance.now(),
+    spawnFired: new Array(action.spawn?.length ?? 0).fill(false),
+    facing: player.facing, // snapshot — keyframe x flips with facing
+    isAmbient,
+    // LIVE reference to the player mesh's position vector — sprites
+    // anchor against it each tick so the pet visibly walks when the
+    // player moves via WASD/arrows. Cloning here would freeze the
+    // pet at its action-start position and it'd appear to disappear
+    // from view as the camera follows the (invisible) atlas mesh.
+    anchorPos: ryu.mesh.position,
+  };
+  richActive.push(inst);
+}
+
+/** Tear down every active rich-action's track meshes + textures. Used
+ *  when a fresh action starts (so it replaces rather than layers on
+ *  the previous one) and when the manifest swaps via the picker. */
+function killActiveRichTracks() {
+  for (const inst of richActive) {
+    for (const t of inst.tracks) {
+      if (t.ownsSprite) {
+        scene.remove(t.sprite.mesh);
+        t.sprite.mesh.geometry.dispose();
+        t.sprite.mesh.material.dispose();
+        t.sprite.tex.dispose();
+      }
+    }
+  }
+  richActive.length = 0;
+}
+
+/** Per-tick update for one active rich action. Returns true if still
+ *  alive, false to clean up. */
+function tickRichAction(inst, nowMs) {
+  const elapsed = nowMs - inst.startMs;
+  const norm = elapsed / inst.action.durationMs;
+  // Fire spawns whose t has been crossed.
+  if (inst.action.spawn) {
+    for (let i = 0; i < inst.action.spawn.length; i++) {
+      if (inst.spawnFired[i]) continue;
+      const sp = inst.action.spawn[i];
+      if (norm >= sp.t) { fireRichSpawn(sp, inst); inst.spawnFired[i] = true; }
+    }
+  }
+  if (norm >= 1) {
+    for (const t of inst.tracks) {
+      if (t.ownsSprite) {
+        scene.remove(t.sprite.mesh);
+        t.sprite.mesh.geometry.dispose();
+        t.sprite.mesh.material.dispose();
+        t.sprite.tex.dispose();
+      }
+    }
+    return false;
+  }
+  // Per-track update.
+  const dirSign = inst.facing === 'right' ? 1 : -1;
+  for (const t of inst.tracks) {
+    const k = sampleKeyframes(t.track, norm);
+    // Step the frame. Source-frame uses fps fallback derived from frame
+    // count + duration. Atlas-row uses rowDef.fps.
+    if (t.track.frames?.length) {
+      const fps = t.track.fps
+        ?? Math.max(1, Math.round(t.track.frames.length * 1000 / inst.action.durationMs));
+      const loops = t.track.loops ?? 1;
+      const total = Math.floor(elapsed / 1000 * fps);
+      let fIdx;
+      if (loops === 0) fIdx = Math.min(t.track.frames.length - 1, total);
+      else fIdx = Math.min(t.track.frames.length * loops - 1, total) % t.track.frames.length;
+      const frame = t.track.frames[fIdx];
+      const flipFromFrame = !!frame.flipH;
+      if (t.sprite.kind === 'source') setSourceFrame(t.sprite, { ...frame, flipH: flipFromFrame !== (inst.facing === 'right') });
+    } else if (t.track.row) {
+      const r = rowDef(t.track.row);
+      if (!r) continue;
+      const fps = t.track.fps ?? r.fps;
+      const loops = t.track.loops ?? 1;
+      const total = Math.floor(elapsed / 1000 * fps);
+      let fIdx;
+      if (loops === 0) fIdx = Math.min(r.frames - 1, total);
+      else fIdx = Math.min(r.frames * loops - 1, total) % r.frames;
+      // Honour per-rowsDef flipH default + the keyframe flipH XOR + the
+      // player's current facing — same convention the existing player.facing
+      // logic uses for legacy actions.
+      const baseFlip = inst.facing === 'right' ? false : true;
+      setAtlasCellFrame(t.sprite, t.track.row, fIdx, baseFlip !== !!k.flipH);
+    }
+    // Apply keyframe transform. x flips with facing so a keyframe x=+30
+    // moves "forward" relative to where the player is looking.
+    const dx = (k.x ?? 0) * dirSign / PX_PER_UNIT;
+    const dy = -(k.y ?? 0) / PX_PER_UNIT; // editor Y is down, scene Y is up
+    if (t.ownsSprite) {
+      t.sprite.mesh.position.set(
+        inst.anchorPos.x + dx,
+        inst.anchorPos.y + dy + (player.jump ? Math.sin(((nowMs - player.jump.startMs) / player.jump.durMs) * Math.PI) * player.jump.peak : 0),
+        inst.anchorPos.z,
+      );
+    } else {
+      // Atlas track on the player — push the offset into the player mesh.
+      ryu.mesh.position.x = inst.anchorPos.x + dx;
+      ryu.mesh.position.y = ryu.h / 2 + dy;
+    }
+    const sx = (k.scaleX ?? 1) * (k.flipH ? -dirSign : dirSign);
+    const sy = k.scaleY ?? 1;
+    // For atlas: the sprite's geometry is already (w, h*aspect). Apply
+    // scale on TOP for keyframes. For source-frame: setSourceFrame
+    // rewrote scale, so multiply by keyframe scale.
+    if (t.sprite.kind === 'source') {
+      t.sprite.mesh.scale.set(t.sprite.w * sx, t.sprite.h * sy, 1);
+    } else {
+      // Atlas: multiply onto base 1.0 scale.
+      t.sprite.mesh.scale.set(sx, sy, 1);
+    }
+    t.sprite.mesh.material.opacity = k.alpha ?? 1;
+    t.sprite.mesh.lookAt(camera.position.x, t.sprite.mesh.position.y, camera.position.z);
+  }
+  return true;
+}
+
+// Ambient driver — keeps a rich-only manifest visibly animated by
+// auto-playing `idle` (at rest) or `walk-left` / `walk-right` (while
+// the user is holding movement keys). Atlas-row manifests skip this:
+// their idle is driven by the existing tickPlayer / setRow path.
+let lastAmbientFire = 0;
+function ambientTick(nowMs) {
+  if (richActive.length > 0) return;            // an action is already playing
+  if (!manifest?.richActions) return;           // legacy-only manifest
+  if (ROWS_DEF && ROWS_DEF.length > 0) return;  // atlas-row manifest handles idle itself
+  if (nowMs - lastAmbientFire < 80) return;     // throttle so we don't flood plays
+  const moving = keysDown.has('forward') || keysDown.has('back')
+              || keysDown.has('left')    || keysDown.has('right');
+  const target = moving
+    ? (player.facing === 'right' ? 'walk-right' : 'walk-left')
+    : 'idle';
+  if (!manifest.richActions[target]) {
+    // Fall back to whichever default exists. No action → nothing to play.
+    if (target !== 'idle' && manifest.richActions.idle) {
+      playRichAction('idle');
+      lastAmbientFire = nowMs;
+    }
+    return;
+  }
+  playRichAction(target);
+  lastAmbientFire = nowMs;
+}
+
+function deriveSpritesUrl(imageUrl) {
+  if (!imageUrl) return null;
+  // /rips/<slug>/<slug>.png → /rips/<slug>/<slug>.json (the convention
+  // build-rips-deploy.py emits — every rip in /rips/index.json follows it).
+  return imageUrl.replace(/\.(png|webp|gif|jpg|jpeg)$/i, '.json');
+}
+
+function fireRichSpawn(sp, inst) {
+  if (sp.type === 'projectile') fireRichProjectile(sp, inst);
+  else if (sp.type === 'particles') fireRichParticles(sp, inst);
+}
+function fireRichProjectile(sp, inst) {
+  const dirSign = inst.facing === 'right' ? 1 : -1;
+  const origin = inst.anchorPos.clone();
+  origin.x += (sp.origin?.x ?? 0) * dirSign / PX_PER_UNIT;
+  origin.y += -(sp.origin?.y ?? 0) / PX_PER_UNIT;
+  // Atlas-row projectile: reuse the existing fireball spawner.
+  if (sp.row && rowDef(sp.row)) {
+    const dir = new THREE.Vector3(dirSign, 0, 0);
+    spawnFireball(origin, dir);
+    return;
+  }
+  // Source-frame projectile: the rip is already cached for this action.
+  if (sp.frames?.length && inst.sourceRip) {
+    const fb = makeSourceFrameSprite(inst.sourceRip, sp.size ? sp.size / PX_PER_UNIT : 0.9);
+    fb.mesh.position.copy(origin);
+    scene.add(fb.mesh);
+    setSourceFrame(fb, { ...sp.frames[0], flipH: dirSign < 0 });
+    projectiles.push({
+      sprite: fb,
+      dir: new THREE.Vector3(dirSign, 0, 0),
+      spawnMs: performance.now(),
+      lifeMs: sp.durationMs ?? 1500,
+      speed: 7,
+      richSpawn: sp,
+      facingSign: dirSign,
+    });
+  }
+}
+
+// 3D particles: each gets its own small sphere mesh. Scaled + faded
+// per-tick. Pool is unbounded — bursts of 30 particles a few times per
+// action is well under any frame-budget concern.
+const particles = [];
+function fireRichParticles(sp, inst) {
+  const e = sp.emitter; if (!e) return;
+  const dirSign = inst.facing === 'right' ? 1 : -1;
+  const origin = inst.anchorPos.clone();
+  origin.x += (sp.origin?.x ?? 0) * dirSign / PX_PER_UNIT;
+  origin.y += -(sp.origin?.y ?? 0) / PX_PER_UNIT;
+  const colorHex = e.color ?? '#ffffff';
+  const color = new THREE.Color(colorHex);
+  for (let k = 0; k < (e.count ?? 12); k++) {
+    const angle = (Math.random() - 0.5) * (e.velocity?.spreadDeg ?? 0) * Math.PI / 180;
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    const vxBase = (e.velocity?.x ?? 0) * dirSign;
+    const vyBase = -(e.velocity?.y ?? 0); // editor y is down
+    const vx = vxBase * cos - vyBase * sin;
+    const vy = vxBase * sin + vyBase * cos;
+    const sizeStart = (e.sizeStart ?? 5) / PX_PER_UNIT;
+    const sizeEnd = (e.sizeEnd ?? sizeStart) / PX_PER_UNIT;
+    const aStart = e.alphaStart ?? 1;
+    const aEnd = e.alphaEnd ?? 0;
+    const geo = new THREE.SphereGeometry(0.5, 8, 6);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(origin);
+    scene.add(mesh);
+    particles.push({
+      mesh, mat, geo,
+      startMs: performance.now(),
+      lifetimeMs: e.lifetimeMs ?? 500,
+      origin: origin.clone(),
+      vx: vx / PX_PER_UNIT, vy: vy / PX_PER_UNIT,
+      gravity: -(e.gravity ?? 0) / PX_PER_UNIT, // anti-direction matches editor
+      sizeStart, sizeEnd, aStart, aEnd,
+    });
+  }
+}
+function tickRichParticles(nowMs) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    const elapsed = nowMs - p.startMs;
+    const u = elapsed / p.lifetimeMs;
+    if (u >= 1) {
+      scene.remove(p.mesh);
+      p.geo.dispose(); p.mat.dispose();
+      particles.splice(i, 1);
+      continue;
+    }
+    const dt = elapsed / 1000;
+    const gy = p.gravity * dt * dt * 0.5;
+    p.mesh.position.set(
+      p.origin.x + p.vx * dt,
+      p.origin.y + p.vy * dt + gy,
+      p.origin.z,
+    );
+    const s = p.sizeStart + (p.sizeEnd - p.sizeStart) * u;
+    p.mesh.scale.set(s, s, s);
+    p.mat.opacity = p.aStart + (p.aEnd - p.aStart) * u;
+  }
+}
+
+/** Rebuild HUD buttons from whatever actions the current manifest
+ *  exposes. Rich actions (manifest.richActions) take priority — that's
+ *  the format the editor authors. Falls back to legacy atlas-row
+ *  actions if no rich actions exist. The first 9 actions get keyboard
+ *  shortcuts 1-9. Movement-only actions (walk-left/walk-right/idle)
+ *  are filtered out of the buttons since the keyboard handles them. */
+const HUD_FILTER = new Set(['idle', 'walk-left', 'walk-right', 'wait']);
+function refreshHud() {
+  const hud = document.querySelector('.hud');
+  if (!hud) return;
+  // Wipe everything except the static label.
+  hud.querySelectorAll('button[data-action]').forEach((b) => b.remove());
+  const label = hud.querySelector('.label');
+  const richKeys = Object.keys(manifest.richActions ?? {});
+  const legacyKeys = richKeys.length ? [] : Object.keys(manifest.actions ?? {});
+  const all = (richKeys.length ? richKeys : legacyKeys).filter((k) => !HUD_FILTER.has(k));
+  all.sort();
+  if (label) {
+    label.textContent = all.length
+      ? `moves — keys 1-${Math.min(9, all.length)}`
+      : 'no actions in this manifest';
+  }
+  for (let i = 0; i < all.length; i++) {
+    const name = all[i];
+    const btn = document.createElement('button');
+    btn.dataset.action = name;
+    btn.textContent = i < 9 ? `${i + 1} · ${name}` : name;
+    btn.addEventListener('click', (e) => { e.preventDefault(); play(name); });
+    hud.appendChild(btn);
+  }
+}
+refreshHud();
+
+// ─── Keyboard: WASD/arrows for movement, 1-5 for moves ──────────────
+const keysDown = new Set();
+const moveKeyMap = {
+  'w': 'forward', 'W': 'forward', 'ArrowUp': 'forward',
+  's': 'back',    'S': 'back',    'ArrowDown': 'back',
+  'a': 'left',    'A': 'left',    'ArrowLeft': 'left',
+  'd': 'right',   'D': 'right',   'ArrowRight': 'right',
+};
+addEventListener('keydown', (e) => {
+  // Don't capture keys while user is typing into the save-picker etc.
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  if (moveKeyMap[e.key]) {
+    keysDown.add(moveKeyMap[e.key]);
+    e.preventDefault();
+    hideTip();
+  } else if (e.key >= '1' && e.key <= '9') {
+    // Dynamic keyboard shortcuts — same order refreshHud() puts the
+    // buttons in. Keeps the HUD's "1 · hadouken" labels truthful even
+    // after switching characters.
+    const buttons = document.querySelectorAll('.hud button[data-action]');
+    const idx = Number(e.key) - 1;
+    if (buttons[idx]) {
+      e.preventDefault();
+      play(buttons[idx].dataset.action);
+    }
+  }
+});
+addEventListener('keyup', (e) => {
+  if (moveKeyMap[e.key]) keysDown.delete(moveKeyMap[e.key]);
+});
+// Releasing focus (alt-tab etc.) — clear so we don't get stuck-held keys.
+addEventListener('blur', () => keysDown.clear());
+
+/** Drive movement directly from held keys, in the camera's frame so W
+ *  always means "into the screen". Returns true if we moved this tick;
+ *  caller skips tap-to-walk in that case. */
+function tickKeyboardMovement(dtSec) {
+  if (player.actionEndsAtMs > 0) return false;
+  let mx = 0, mz = 0;
+  if (keysDown.has('forward')) mz -= 1;
+  if (keysDown.has('back'))    mz += 1;
+  if (keysDown.has('left'))    mx -= 1;
+  if (keysDown.has('right'))   mx += 1;
+  if (mx === 0 && mz === 0) return false;
+  // Camera-relative axes — forward is the camera's projected forward on
+  // the XZ plane; right is forward × up. Moving "right" (D) sends the
+  // player along camera-right, which feels natural after orbiting.
+  const camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  camDir.y = 0;
+  if (camDir.lengthSq() < 1e-6) camDir.set(0, 0, -1);
+  camDir.normalize();
+  const right = new THREE.Vector3().crossVectors(camDir, new THREE.Vector3(0, 1, 0)).normalize();
+  const move = new THREE.Vector3()
+    .addScaledVector(camDir, -mz)
+    .addScaledVector(right, mx);
+  if (move.lengthSq() > 0) move.normalize();
+  const speed = 3.4;
+  ryu.mesh.position.x += move.x * speed * dtSec;
+  ryu.mesh.position.z += move.z * speed * dtSec;
+  // Y is owned by tickJump — don't touch it here so jumps still arc
+  // smoothly while moving.
+  player.facing = move.x < 0 ? 'left' : 'right';
+  player.walkTarget = null; // cancel any pending tap-to-walk target
+  const row = player.facing === 'left' ? 'walk-left' : 'walk-right';
+  player.persistent = row;
+  if (player.state !== row) setRow(row);
+  return true;
+}
+
+// ─── Save picker — load any compatible save from localStorage ───────
+// The rich-editor writes saves to localStorage under
+// `ryu-rich-editor:saves:index` + `ryu-rich-editor:saves:<slug>`. We only
+// list ones whose manifest has an atlas + actions block (the playground
+// renders atlas-row mode only — source-frame manifests need editor-only
+// rendering to play correctly here).
+const SAVES_INDEX_KEY = 'ryu-rich-editor:saves:index';
+const SAVE_KEY_PREFIX = 'ryu-rich-editor:saves:';
+function listCompatibleSaves() {
+  let idx = [];
+  try { idx = JSON.parse(localStorage.getItem(SAVES_INDEX_KEY) ?? '[]'); } catch {}
+  // Merge in any disk-backed saves from /saves/index.json (loaded
+  // earlier via loadDiskSavesIndex) — same slug-dedup logic the
+  // pet-tester uses.
+  const disk = window.__DISK_SAVES__ ?? [];
+  const seen = new Set(disk.map((e) => e.slug));
+  idx = [...disk, ...idx.filter((e) => !seen.has(e.slug))];
+  const out = [];
+  for (const e of idx) {
+    let blob;
+    try { blob = JSON.parse(localStorage.getItem(SAVE_KEY_PREFIX + e.slug) ?? 'null'); } catch {}
+    if (!blob?.manifest) continue;
+    // Atlas-row manifests need spritesheet + rowsDef. Source-frame /
+    // rich-only manifests can run via playRichAction(), but they need a
+    // sourceImage to build sprites — fall back to the picker's "rip"
+    // hint if present (saved with activeRipSlug).
+    const m = blob.manifest;
+    const hasAtlas = !!(m.atlas?.rowsDef && m.spritesheet);
+    const hasRich = !!m.richActions && Object.keys(m.richActions).length > 0;
+    if (!hasAtlas && !hasRich) continue;
+    out.push({
+      slug: e.slug, name: e.name ?? e.slug, manifest: m,
+      activeRipSlug: blob.activeRipSlug,
+    });
+  }
+  return out;
+}
+function rebuildPlayerSprite() {
+  // Remove the old mesh, create a fresh one bound to the current baseTex.
+  scene.remove(ryu.mesh);
+  ryu.mesh.geometry.dispose();
+  ryu.mesh.material.dispose();
+  ryu.tex.dispose();
+  const fresh = makeAtlasSprite(2.6);
+  ryu.mesh = fresh.mesh; ryu.tex = fresh.tex; ryu.w = fresh.w; ryu.h = fresh.h;
+  ryu.mesh.position.set(0, ryu.h / 2, 0);
+  scene.add(ryu.mesh);
+  // Reset player state to a clean idle so the sprite is visible immediately.
+  player.state = 'idle'; player.persistent = 'idle';
+  player.frame = 0; player.lastFrameTimeMs = 0;
+  player.actionEndsAtMs = 0; player.jump = null; player.walkTarget = null;
+}
+function refreshSavePicker() {
+  const sel = document.getElementById('save-picker');
+  if (!sel) return;
+  // Preserve current selection across re-renders.
+  const current = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  // Group 1: starter presets (Ryu / Guile / Chun-Li). Same data the
+  // editor's 📦 Presets modal and pet-tester use — single source of
+  // truth in /presets.js.
+  if (window.STARTER_PRESETS?.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Starter presets';
+    for (const p of window.STARTER_PRESETS) {
+      const opt = document.createElement('option');
+      opt.value = `preset:${p.slug}`;
+      opt.textContent = p.label;
+      if (`preset:${p.slug}` === current) opt.selected = true;
+      group.appendChild(opt);
+    }
+    sel.appendChild(group);
+  }
+  // Group 2: localStorage saves from the editor.
+  const saves = listCompatibleSaves();
+  if (saves.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Saved versions';
+    for (const s of saves) {
+      const opt = document.createElement('option');
+      opt.value = s.slug;
+      opt.textContent = s.name;
+      if (s.slug === current) opt.selected = true;
+      group.appendChild(opt);
+    }
+    sel.appendChild(group);
+  }
+}
+async function loadDiskSavesIndex() {
+  try {
+    const r = await fetch('/saves/index.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    const arr = await r.json();
+    if (Array.isArray(arr)) window.__DISK_SAVES__ = arr;
+  } catch {}
+}
+loadDiskSavesIndex().then(refreshSavePicker);
+refreshSavePicker();
+document.getElementById('save-picker').addEventListener('change', async (ev) => {
+  const slug = ev.target.value;
+  if (!slug) {
+    await loadManifest(await fetch('/ryu.json').then(r => r.json()), '/spritesheet.webp');
+  } else if (slug.startsWith('preset:')) {
+    // Preset path — resolve via the shared resolvePresetManifest()
+    // (fetches the rip's sprites.json and embeds bbox metadata).
+    // Adds a 1×1 transparent atlas + spritesheet so loadManifest's
+    // codepath that needs an atlas object stays happy.
+    const presetSlug = slug.slice('preset:'.length);
+    const preset = (window.STARTER_PRESETS ?? []).find((p) => p.slug === presetSlug);
+    if (!preset) { alert('preset not found'); return; }
+    const m = await window.resolvePresetManifest(preset);
+    if (!m.atlas) m.atlas = { cols: 1, rows: 1, rowsDef: [] };
+    // Playground reads sprites via spritesUrl rather than embedded
+    // sprites — point at the rip's JSON so ensureSourceRip() can
+    // load it on demand for source-frame tracks.
+    m.spritesUrl = `/rips/${preset.ripSlug}/${preset.ripSlug}.json`;
+    await loadManifest(m, m.spritesheet ?? '/blank-1x1.png');
+    killActiveRichTracks();
+  rebuildPlayerSprite();
+    refreshHud();
+    // ambientTick() will auto-fire idle (or walk-* if user holds keys)
+    // every frame the rich runtime is idle, so no explicit play() here.
+    return;
+  } else {
+    let blob;
+    try { blob = JSON.parse(localStorage.getItem(SAVE_KEY_PREFIX + slug) ?? 'null'); } catch {}
+    // Disk fallback so a fresh browser still resolves the save.
+    if (!blob?.manifest) {
+      try {
+        const r = await fetch(`/saves/${encodeURIComponent(slug)}.json`, { cache: 'no-store' });
+        if (r.ok) blob = await r.json();
+      } catch {}
+    }
+    if (!blob?.manifest) { alert('save not found'); return; }
+    const m = blob.manifest;
+    // Source-frame manifests carry sourceImage / sprites URLs from
+    // build-export. If those are absent (raw editor save), reconstruct
+    // from the activeRipSlug — every entry in /rips/index.json follows
+    // the convention /rips/<slug>/<slug>.png + .json.
+    if (!m.sourceImage && blob.activeRipSlug && blob.activeRipSlug !== '__atlas__') {
+      m.sourceImage = `/rips/${blob.activeRipSlug}/${blob.activeRipSlug}.png`;
+      m.spritesUrl = `/rips/${blob.activeRipSlug}/${blob.activeRipSlug}.json`;
+    }
+    // Atlas-only manifests — make sure they have a spritesheet to load.
+    // If they don't but we're falling back to atlas-row playback, use
+    // /spritesheet.webp as a lenient default. Actually safer to just
+    // not load baseTex at all; rich-action playback only needs it for
+    // atlas-row tracks. Provide a pixel-fallback so the texture exists.
+    const sheet = m.spritesheet || '/spritesheet.webp';
+    // Atlas might be missing entirely on rich-only manifests — provide
+    // a stub so loadManifest doesn't throw on rowsDef access.
+    if (!m.atlas) m.atlas = { cols: 1, rows: 1, rowsDef: [] };
+    await loadManifest(m, sheet);
+  }
+  killActiveRichTracks();
+  rebuildPlayerSprite();
+  refreshHud();
+});
+// Storage events — picker also refreshes when a different tab saves a
+// new slot, so the user doesn't have to reload to see it appear.
+addEventListener('storage', (e) => {
+  if (e.key === SAVES_INDEX_KEY || e.key?.startsWith(SAVE_KEY_PREFIX)) refreshSavePicker();
+});
+
+// ─── Hide tip after first interaction ───────────────────────────────
+const tip = document.getElementById('tip');
+let tipHidden = false;
+function hideTip() {
+  if (tipHidden) return;
+  tipHidden = true;
+  tip.classList.add('hidden');
+  setTimeout(() => tip.remove(), 600);
+}
+
+// ─── Resize ─────────────────────────────────────────────────────────
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}, { passive: true });
+
+// ─── Main loop ──────────────────────────────────────────────────────
+let lastT = performance.now();
+function animate() {
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  // Keyboard movement takes priority over tap-to-walk; if no keys are
+  // held, fall through to the tap target.
+  if (!tickKeyboardMovement(dt)) tickMovement(dt);
+  tickJump(now);
+  tickPlayer(now);
+  // Tick rich-action instances; cleaned up entries are spliced.
+  for (let i = richActive.length - 1; i >= 0; i--) {
+    if (!tickRichAction(richActive[i], now)) richActive.splice(i, 1);
+  }
+  // Auto-loop idle / walk-left / walk-right for rich-only manifests so
+  // the pet stays visible at rest and during movement. No-op for the
+  // default Ryu atlas-row manifest.
+  ambientTick(now);
+  tickRichParticles(now);
+  tickProjectiles(now, dt);
+  tickBillboard();
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+document.getElementById('loading').classList.add('hidden');
+setTimeout(() => document.getElementById('loading').remove(), 600);
+requestAnimationFrame(animate);
+</script>
+
+</body>
+</html>

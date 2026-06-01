@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Ryu sprite-pick editor</title>
+<style>
+  :root {
+    --bg: #111;
+    --panel: #1a1a22;
+    --slot: #2a2a35;
+    --slot-empty: #1a1a22;
+    --accent: #e74c3c;
+    --text: #eee;
+    --dim: #888;
+    --border: #333;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 12px;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 13px;
+  }
+  h1 { margin: 0 0 8px; font-size: 18px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button, select, input[type=number], input[type=text] {
+    background: #2a2a35; color: var(--text); border: 1px solid var(--border);
+    padding: 4px 8px; border-radius: 3px; font-family: inherit; font-size: 13px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: #353545; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+  /* Layout */
+  .top { padding: 10px; background: var(--panel); border-radius: 6px; margin-bottom: 12px; }
+  .row-controls { gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+  .row-controls label { color: var(--dim); margin-right: 4px; }
+  .slots {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px;
+    margin-bottom: 8px;
+  }
+  /* Slot has 1.5x the cell as padding on each side — total slot is 4x cell
+   * area (cell occupies the inner ~25% of the slot's largest dimension).
+   * Lets you drag a sprite well outside the cell to visualize a SHORYUKEN
+   * flying way up past the cell ceiling. The cell itself is the dashed
+   * red outline. */
+  .slot {
+    background: #050508; border: 1px solid #2a2a35; border-radius: 4px;
+    aspect-ratio: 768 / 832; position: relative; overflow: hidden;
+    cursor: pointer; user-select: none;
+    /* Prevent mobile browsers from claiming the touch as a scroll gesture
+     * before pointerdown — drag would otherwise stop after a few pixels. */
+    touch-action: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .slot .cell-outline {
+    position: absolute;
+    left: 37.5%; right: 37.5%; top: 37.5%; bottom: 37.5%;
+    border: 1px dashed rgba(231, 76, 60, 0.45);
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .slot.filled { cursor: grab; }
+  .slot.filled.dragging { cursor: grabbing; }
+  .slot .offset { position: absolute; bottom: 2px; left: 4px; font-size: 9px; color: #aef; opacity: 0.7; pointer-events:none; z-index: 2 }
+  .slot .baseline { position: absolute; left:37.5%; right:37.5%; bottom: 37.5%; height:1px; background: rgba(231,76,60,0.55); pointer-events: none; transform: translateY(-4px); }
+  .slot .ghost {
+    position: absolute; pointer-events: none;
+    image-rendering: pixelated; opacity: 0.18;
+    filter: hue-rotate(180deg);
+  }
+  /* Per-slot toolbar — flip toggle + add-layer button. Floats top-right. */
+  .slot .toolbar {
+    position: absolute; top: 2px; right: 2px; z-index: 3;
+    display: flex; gap: 2px;
+  }
+  .slot .toolbar button {
+    padding: 1px 6px; font-size: 10px; line-height: 1.2;
+    background: rgba(0,0,0,0.5); border: 1px solid #444; color: #ccc;
+    border-radius: 2px; cursor: pointer;
+  }
+  .slot .toolbar button:hover { background: rgba(231,76,60,0.5); border-color: var(--accent); color: #fff; }
+  .slot .toolbar button.active { background: var(--accent); border-color: var(--accent); color:#fff; }
+  /* Layer tabs along the bottom of the slot — clicking selects which
+   * layer drag affects. */
+  .slot .layer-tabs {
+    position: absolute; left: 2px; bottom: 2px; z-index: 3;
+    display: flex; gap: 2px;
+  }
+  .slot .layer-tabs button {
+    padding: 1px 5px; font-size: 9px; line-height: 1.2;
+    background: rgba(0,0,0,0.6); border: 1px solid #555; color: #aaa;
+    border-radius: 2px; cursor: pointer;
+  }
+  .slot .layer-tabs button.active { background: var(--accent); border-color: var(--accent); color:#fff; }
+  .slot .layer-tabs button:hover { color: #fff; }
+  .slot.filled { background: var(--slot); border-style: solid; border-color: #555; }
+  .slot.dragover { border-color: var(--accent); background: #3a2a2a; }
+  .slot .frame-wrap {
+    width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center;
+    image-rendering: pixelated;
+  }
+  .slot .label { position: absolute; top: 2px; left: 4px; font-size: 10px; color: var(--dim); pointer-events: none; }
+  .slot .pos { position: absolute; top: 2px; right: 4px; font-size: 10px; color: var(--dim); }
+  .slot .x {
+    position: absolute; right: 4px; top: 26px; z-index: 4;
+    background: rgba(0,0,0,0.7); color: #fff; padding: 1px 5px;
+    font-size: 11px; line-height: 1.2; border: 1px solid #555;
+    border-radius: 2px; cursor: pointer; opacity: 0.55;
+    transition: opacity 100ms, background 100ms;
+  }
+  .slot .x:hover { opacity: 1; background: rgba(231,76,60,0.85); border-color: var(--accent); }
+
+  /* Live preview — same wide-padded viewport as the slots (cell occupies
+   * inner 25%). Lets you see a SHORYUKEN frame visibly extend above the
+   * cell during the loop. */
+  .preview-wrap { display: flex; gap: 12px; align-items: center; }
+  .preview {
+    width: 384px; height: 416px; background: #050508; border: 1px solid var(--border);
+    border-radius: 4px; image-rendering: pixelated; position: relative; overflow: hidden;
+  }
+  .preview .cell-outline {
+    position: absolute;
+    left: 37.5%; right: 37.5%; top: 37.5%; bottom: 37.5%;
+    border: 1px dashed rgba(231, 76, 60, 0.45);
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .preview .baseline {
+    position: absolute; left: 37.5%; right: 37.5%; bottom: 37.5%;
+    height: 1px; background: rgba(231, 76, 60, 0.55); transform: translateY(-4px);
+    pointer-events: none;
+  }
+  .preview .preview-img { position: absolute; }
+
+  /* Source sprite browser */
+  .source-grid { background: var(--panel); border-radius: 6px; padding: 10px; }
+  .band { margin-bottom: 8px; }
+  .band-label { color: var(--dim); font-size: 11px; padding: 2px 0; }
+  .frames { display: flex; flex-wrap: wrap; gap: 4px; }
+  .frame {
+    background: #0a0a10; border: 1px solid var(--border); border-radius: 3px;
+    image-rendering: pixelated; padding: 2px; cursor: grab; position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    transition: border-color 80ms;
+  }
+  .frame:hover { border-color: var(--accent); }
+  .frame:active { cursor: grabbing; }
+  .frame .frame-label { font-size: 9px; color: var(--dim); margin-top: 2px; }
+
+  /* Export pane */
+  .export {
+    margin-top: 12px; padding: 10px; background: var(--panel); border-radius: 6px;
+  }
+  textarea {
+    width: 100%; height: 220px; background: #0a0a10; color: var(--text);
+    border: 1px solid var(--border); border-radius: 3px; padding: 8px;
+    font-family: ui-monospace, monospace; font-size: 11px; resize: vertical;
+  }
+  .pill { background: #2a2a35; border-radius: 999px; padding: 2px 8px; font-size: 11px; color: var(--dim); }
+</style>
+</head>
+<body>
+
+<a href="/" title="Back to index" style="display:inline-block;text-decoration:none;color:#888;background:#222;border:1px solid #444;padding:4px 10px;border-radius:4px;font-size:13px;margin-bottom:12px">← index</a>
+<h1>Ryu sprite-pick editor</h1>
+
+<div class="top">
+  <div class="row row-controls">
+    <label>Mode:</label>
+    <select id="mode-select">
+      <option value="codex">Codex (8 cells, codex-pets compatible)</option>
+      <option value="flexible">Flexible (up to 24 cells, custom only)</option>
+    </select>
+    <span class="pill" id="mode-info">—</span>
+    <span style="flex:0 0 16px"></span>
+    <label>Row:</label>
+    <select id="row-select"></select>
+    <span class="pill" id="row-info">—</span>
+    <label>fps:</label>
+    <input id="fps-in" type="number" min="1" max="30" style="width:60px">
+    <label>frames:</label>
+    <input id="frames-in" type="number" min="1" max="8" style="width:60px" disabled>
+    <label>flip-H:</label>
+    <input id="flip-in" type="checkbox">
+    <label style="margin-left:12px">jumpHeight:</label>
+    <input id="jump-in" type="number" min="0" max="300" step="10" style="width:60px" placeholder="0">
+    <label>expandUp:</label>
+    <input id="expand-in" type="number" min="0" max="200" step="10" style="width:60px" placeholder="0">
+    <button id="reset-row" title="Empty all slots in this row">clear row</button>
+  </div>
+
+  <div class="slots" id="slots"></div>
+
+  <div class="row preview-wrap">
+    <div class="preview" id="preview-frame">
+      <div class="cell-outline"></div>
+      <div class="preview-img" id="preview"></div>
+      <div class="baseline"></div>
+    </div>
+    <div>
+      <div style="color:var(--dim);font-size:11px">Live preview at row's fps. Frames cycle automatically.</div>
+      <div id="preview-info" style="font-size:11px;color:var(--dim);margin-top:4px"></div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button onclick="undo()" id="undo-btn" title="Undo (Ctrl+Z)">↶ Undo</button>
+      <button onclick="redo()" id="redo-btn" title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
+      <button onclick="resetEditor()" title="Reset all rows to the built-in defaults">Reset</button>
+      <span style="flex:0 0 8px"></span>
+      <button onclick="copyManifest()" class="primary">Copy manifest JSON</button>
+      <button onclick="downloadPicks()">Download picks.json</button>
+      <button onclick="copyBuildPy()">Copy picks.json</button>
+      <button onclick="saveLocal()" title="Save to localStorage">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="source-grid">
+  <div style="color:var(--dim);font-size:11px;margin-bottom:6px">
+    Drag a frame to a slot. Or click a slot first then click a frame to fill it.
+    Hover a slot to see X to remove. Right-click a slot to set ymax (top-only crop).
+  </div>
+  <div id="bands"></div>
+</div>
+
+<div class="export">
+  <div style="color:var(--dim);font-size:11px;margin-bottom:4px">Export preview (auto-updates):</div>
+  <textarea id="export" readonly></textarea>
+</div>
+
+<script>
+// ─── Manifest row ids (matches build_local.py / ryu.json) ─────────────
+const ROWS = [
+  { id: 'idle',       index: 0, fps: 6,  flipH: true  },
+  { id: 'walk-right', index: 1, fps: 8,  flipH: false },
+  { id: 'walk-left',  index: 2, fps: 8,  flipH: true  },
+  { id: 'taunt',      index: 3, fps: 6,  flipH: true  },
+  { id: 'shoryuken',  index: 4, fps: 9,  flipH: true,  jumpHeight: 110 },
+  { id: 'knockdown',  index: 5, fps: 7,  flipH: true  },
+  { id: 'wait',       index: 6, fps: 6,  flipH: true  },
+  { id: 'kick',       index: 7, fps: 8,  flipH: true  },
+  { id: 'hadouken',   index: 8, fps: 7,  flipH: true  },
+  { id: 'spinkick',   index: 9, fps: 12, flipH: true  },
+  { id: 'fireball',   index: 10, fps: 12, flipH: true },
+];
+
+// ─── Initial picks (from build_local.py — edit here to seed) ──────────
+// Each pick is [band, idx, ymax?]. Offsets default to 0/0 (bottom-center).
+const INITIAL_PICKS = {
+  'idle':       [[0,0],[0,1],[0,2],[0,3],[0,2],[0,1]],
+  'walk-right': [[0,4],[0,5],[0,6],[0,7],[0,8],[0,9]],
+  'walk-left':  [[0,4],[0,5],[0,6],[0,7],[0,8],[0,9]],
+  'taunt':      [[1,18],[1,19],[1,20],[1,19]],
+  'shoryuken':  [[4,13],[4,14],[4,15],[4,16],[4,17],[4,18],[4,19],[0,0]],
+  'knockdown':  [[6,8],[6,9],[6,10],[6,11],[6,12],[6,13],[6,14],[6,15]],
+  'wait':       [[1,0],[1,1],[1,2],[1,3],[1,2],[1,1]],
+  'kick':       [[2,0],[2,3],[2,4],[2,5],[2,6],[2,7],[2,8]],
+  'hadouken':   [[5,0],[5,1],[5,2],[5,3]],
+  'spinkick':   [[4,20],[4,21],[4,22],[4,23],[4,24],[4,25],[4,26],[4,27]],
+  'fireball':   [[5,7,38],[5,9,38],[5,7,38],[5,9,38]],
+};
+
+// Cell dimensions in source-pixel space — used to interpret per-frame
+// offsetX/offsetY which the user nudges via drag. Offsets are stored as
+// integers in cell-pixel space (0,0 = default bottom-centered placement;
+// negative Y = up, positive Y = down).
+const CELL_W = 192, CELL_H = 208;
+
+const STORAGE_KEY = 'ryu-editor-state-v1';
+
+let sprites = [];          // raw sprite list with bbox
+let byBandIdx = new Map(); // (band, idx) -> sprite
+let byBand = new Map();    // band -> [sprite, sprite, ...] sorted by idx
+let state = {
+  rows: {},          // rowId -> { fps, flipH, jumpHeight, expandUp, frames: [{band, idx, ymax, offsetX, offsetY}] }
+  currentRow: 'idle',
+  mode: 'codex',     // 'codex' (max 8 cells, default Codex frame counts apply) | 'flexible' (max 24)
+};
+
+let previewTimer = null;
+let previewFrame = 0;
+
+// ─── Undo/redo ───────────────────────────────────────────────────────
+// Stacks of state snapshots (JSON strings of the persisted slice). Held
+// in memory only — not persisted to localStorage so a reload starts fresh.
+const undoStack = [];
+const redoStack = [];
+const UNDO_LIMIT = 80;
+
+/** Snapshot the editable portion of state. Excludes activeLayer (UI cursor)
+ *  so undoing doesn't jump the user's selection around. */
+function snapshotState() {
+  return JSON.stringify({ mode: state.mode, currentRow: state.currentRow, rows: state.rows });
+}
+/** Call BEFORE any mutation. Clears the redo stack since we're branching. */
+function pushUndo() {
+  undoStack.push(snapshotState());
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  redoStack.length = 0;
+  refreshUndoButtons();
+}
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(snapshotState());
+  const snap = JSON.parse(undoStack.pop());
+  state.mode = snap.mode;
+  state.currentRow = snap.currentRow;
+  state.rows = snap.rows;
+  saveState();
+  render();
+  refreshUndoButtons();
+  flash('undid');
+}
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(snapshotState());
+  const snap = JSON.parse(redoStack.pop());
+  state.mode = snap.mode;
+  state.currentRow = snap.currentRow;
+  state.rows = snap.rows;
+  saveState();
+  render();
+  refreshUndoButtons();
+  flash('redid');
+}
+function refreshUndoButtons() {
+  const u = document.getElementById('undo-btn');
+  const r = document.getElementById('redo-btn');
+  if (u) { u.disabled = !undoStack.length; u.style.opacity = undoStack.length ? '1' : '0.4'; }
+  if (r) { r.disabled = !redoStack.length; r.style.opacity = redoStack.length ? '1' : '0.4'; }
+}
+function resetEditor() {
+  if (!confirm('Reset all rows to the built-in defaults? Your current picks will be undoable.')) return;
+  pushUndo();
+  state.rows = {};
+  for (const r of ROWS) {
+    const picks = INITIAL_PICKS[r.id] || [];
+    state.rows[r.id] = {
+      fps: r.fps,
+      flipH: r.flipH,
+      jumpHeight: r.jumpHeight ?? 0,
+      expandUp: 0,
+      frames: picks.map(p => ({
+        layers: [{
+          band: p[0], idx: p[1], ymax: p[2] ?? null,
+          offsetX: 0, offsetY: 0, flipH: undefined,
+        }],
+      })),
+    };
+  }
+  state.activeLayer = {};
+  saveState();
+  render();
+  flash('reset to defaults');
+}
+
+// ─── State init / persistence ────────────────────────────────────────
+function loadState() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try { state = JSON.parse(saved); return; } catch { /* fall through */ }
+  }
+  state.rows = {};
+  for (const r of ROWS) {
+    const picks = INITIAL_PICKS[r.id] || [];
+    state.rows[r.id] = {
+      fps: r.fps,
+      flipH: r.flipH,
+      jumpHeight: r.jumpHeight ?? 0,
+      expandUp: 0,
+      frames: picks.map(p => ({ band: p[0], idx: p[1], ymax: p[2] ?? null, offsetX: 0, offsetY: 0 })),
+    };
+  }
+  state.currentRow = 'idle';
+}
+// Migrate older saved states that pre-date offsetX/offsetY so existing
+// in-progress edits don't crash on the new fields.
+function migrateState() {
+  for (const id in state.rows) {
+    for (const f of state.rows[id].frames) {
+      if (f.offsetX === undefined) f.offsetX = 0;
+      if (f.offsetY === undefined) f.offsetY = 0;
+      // Multi-layer support: every frame is a list of layers (back→front).
+      // Convert flat-field frames into a single-layer array.
+      if (!Array.isArray(f.layers)) {
+        f.layers = [{
+          band: f.band, idx: f.idx,
+          ymax: f.ymax || null,
+          offsetX: f.offsetX || 0, offsetY: f.offsetY || 0,
+          flipH: undefined, // undefined = inherit from row
+        }];
+      }
+    }
+  }
+  if (!state.mode) state.mode = 'codex';
+  // Active layer per row — the index of the layer that drag/right-click
+  // operate on. Persisted so switching rows remembers your selection.
+  if (!state.activeLayer) state.activeLayer = {};
+}
+
+/** Layer the drag and edits target for the current row. Defaults to 0
+ *  (primary). Bounded by the active frame's layer count. */
+function activeLayerIdx(slotIdx) {
+  const row = state.rows[state.currentRow];
+  const f = row.frames[slotIdx];
+  if (!f) return 0;
+  const key = `${state.currentRow}:${slotIdx}`;
+  const stored = state.activeLayer[key] ?? 0;
+  return Math.min(stored, f.layers.length - 1);
+}
+function setActiveLayerIdx(slotIdx, n) {
+  state.activeLayer[`${state.currentRow}:${slotIdx}`] = n;
+  saveState();
+}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function saveLocal() { saveState(); flash('Saved'); }
+
+function flash(msg) {
+  const el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;top:14px;right:14px;background:#2a4a2a;color:#aef;padding:8px 14px;border-radius:4px;font-size:13px;z-index:9999';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+// ─── Sprite loading ──────────────────────────────────────────────────
+async function loadSprites() {
+  const r = await fetch('/sprites.json');
+  if (!r.ok) {
+    // Fall back to /tmp/ryu/sprites.json — the editor's served from
+    // /tmp/ryu/local but sprites.json lives one level up. Show a helpful
+    // error so the user knows to symlink it.
+    document.body.innerHTML = '<h1>Missing /sprites.json</h1><p>Symlink it:<br><code>ln -s /tmp/ryu/sprites.json /tmp/ryu/local/sprites.json</code></p>';
+    throw new Error('No sprites.json');
+  }
+  sprites = await r.json();
+  byBand.clear(); byBandIdx.clear();
+  for (const s of sprites) {
+    if (!byBand.has(s.band)) byBand.set(s.band, []);
+    byBand.get(s.band).push(s);
+    byBandIdx.set(`${s.band}.${s.idx}`, s);
+  }
+  for (const arr of byBand.values()) arr.sort((a,b) => a.idx - b.idx);
+}
+
+function spriteByLocal(band, localIdx) {
+  const arr = byBand.get(band);
+  return arr ? arr[localIdx] : undefined;
+}
+
+function spriteBg(s, ymax = null, flipH = false, scale = 1) {
+  if (!s) return null;
+  const x0 = s.bbox[0], y0 = s.bbox[1], x1 = s.bbox[2], y1 = s.bbox[3];
+  const yEnd = ymax != null ? Math.min(y1, y0 + ymax) : y1;
+  const w = x1 - x0, h = yEnd - y0;
+  return { x0, y0, w, h, flipH, scale };
+}
+
+// Render a sprite into a target element via background-image of /ryu.png.
+function applySpriteBg(el, s, opts = {}) {
+  const ymax = opts.ymax ?? null;
+  const flipH = opts.flipH ?? false;
+  const wPx = opts.wPx ?? null; // target render width
+  const hPx = opts.hPx ?? null;
+  if (!s) {
+    el.style.cssText = 'width:0;height:0;background:none';
+    return;
+  }
+  const x0 = s.bbox[0], y0 = s.bbox[1], x1 = s.bbox[2], y1 = s.bbox[3];
+  const yEnd = ymax != null ? Math.min(y1, y0 + ymax) : y1;
+  const sw = x1 - x0, sh = yEnd - y0;
+  // Use width/height + background-position to crop.
+  // For flip-h, apply transform on the element itself.
+  const w = wPx ?? sw;
+  const h = hPx ?? sh;
+  // Use background-size to scale the source; the cropped slice is always
+  // the bbox dimensions, but the background image itself is the full PNG.
+  const sxScale = w / sw;
+  const syScale = h / sh;
+  el.style.cssText = [
+    `width:${w}px`,
+    `height:${h}px`,
+    'background-image:url(/ryu.png)',
+    `background-position:${-x0 * sxScale}px ${-y0 * syScale}px`,
+    `background-size:${1523 * sxScale}px ${959 * syScale}px`,
+    'background-repeat:no-repeat',
+    'image-rendering:pixelated',
+    flipH ? 'transform:scaleX(-1)' : '',
+  ].filter(Boolean).join(';');
+}
+
+// ─── UI building ─────────────────────────────────────────────────────
+function buildRowSelect() {
+  const sel = document.getElementById('row-select');
+  sel.innerHTML = '';
+  for (const r of ROWS) {
+    const opt = document.createElement('option');
+    opt.value = r.id;
+    opt.textContent = `row ${r.index} — ${r.id}`;
+    sel.appendChild(opt);
+  }
+  sel.value = state.currentRow;
+  sel.onchange = () => {
+    state.currentRow = sel.value;
+    saveState(); render();
+  };
+}
+
+function buildBands() {
+  const root = document.getElementById('bands');
+  root.innerHTML = '';
+  for (const [band, arr] of [...byBand.entries()].sort((a,b)=>a[0]-b[0])) {
+    const div = document.createElement('div');
+    div.className = 'band';
+    const lbl = document.createElement('div');
+    lbl.className = 'band-label';
+    lbl.textContent = `Band ${band} — ${arr.length} sprites`;
+    div.appendChild(lbl);
+    const frames = document.createElement('div');
+    frames.className = 'frames';
+    for (let i = 0; i < arr.length; i++) {
+      const s = arr[i];
+      const fr = document.createElement('div');
+      fr.className = 'frame';
+      fr.draggable = true;
+      fr.dataset.band = band;
+      fr.dataset.idx = i;
+      fr.title = `${band}.${i}`;
+      const inner = document.createElement('div');
+      // Render at ~3x for visibility, capped at 80px height
+      const sw = s.bbox[2] - s.bbox[0], sh = s.bbox[3] - s.bbox[1];
+      const targetH = Math.min(80, sh * 2);
+      const targetW = Math.round(sw * (targetH / sh));
+      applySpriteBg(inner, s, { wPx: targetW, hPx: targetH });
+      fr.appendChild(inner);
+      const label = document.createElement('div');
+      label.className = 'frame-label';
+      label.textContent = `${band}.${i}`;
+      fr.appendChild(label);
+      fr.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/sprite', `${band}.${i}`);
+      });
+      fr.addEventListener('click', () => {
+        addFrameToCurrentRow(band, i);
+      });
+      frames.appendChild(fr);
+    }
+    div.appendChild(frames);
+    root.appendChild(div);
+  }
+}
+
+function buildSlots() {
+  const root = document.getElementById('slots');
+  root.innerHTML = '';
+  const row = state.rows[state.currentRow];
+  const maxCells = state.mode === 'flexible' ? 24 : 8;
+  const slotCount = state.mode === 'flexible'
+    ? Math.min(maxCells, Math.max(8, row.frames.length + 2))
+    : 8;
+  root.style.gridTemplateColumns = `repeat(${Math.min(slotCount, 12)}, 1fr)`;
+  for (let i = 0; i < slotCount; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    const frame = row.frames[i];
+    const cellOutline = document.createElement('div');
+    cellOutline.className = 'cell-outline';
+    slot.appendChild(cellOutline);
+    if (frame) {
+      slot.classList.add('filled');
+      const prev = i > 0 ? row.frames[i - 1] : null;
+      if (prev) {
+        const ghost = document.createElement('div');
+        ghost.className = 'ghost';
+        slot.appendChild(ghost);
+      }
+      const wrap = document.createElement('div');
+      wrap.className = 'frame-wrap';
+      slot.appendChild(wrap);
+      const lbl = document.createElement('div');
+      lbl.className = 'label';
+      const li = activeLayerIdx(i);
+      const a = frame.layers[li];
+      lbl.textContent = `${a.band}.${a.idx}` + (a.ymax ? `↑${a.ymax}` : '');
+      slot.appendChild(lbl);
+      const baseline = document.createElement('div');
+      baseline.className = 'baseline';
+      slot.appendChild(baseline);
+      const offsetLabel = document.createElement('div');
+      offsetLabel.className = 'offset';
+      slot.appendChild(offsetLabel);
+
+      // ── Per-slot toolbar: flip-H toggle + add-layer ─────────────
+      const toolbar = document.createElement('div');
+      toolbar.className = 'toolbar';
+      const flipBtn = document.createElement('button');
+      const layerFlip = a.flipH !== undefined ? a.flipH : row.flipH;
+      flipBtn.textContent = '↔';
+      flipBtn.title = `flip-H (active layer ${li}). Currently ${layerFlip ? 'on' : 'off'}.`;
+      if (a.flipH !== undefined) flipBtn.classList.add('active');
+      flipBtn.onclick = (e) => {
+        e.stopPropagation();
+        pushUndo();
+        // Cycle: undefined → !rowFlipH → undefined (unset = inherit row)
+        const cur = a.flipH;
+        a.flipH = cur === undefined ? !row.flipH : undefined;
+        saveState(); render();
+      };
+      toolbar.appendChild(flipBtn);
+      const addBtn = document.createElement('button');
+      addBtn.textContent = '+L';
+      addBtn.title = 'add another sprite layer to this cell';
+      addBtn.onclick = (e) => {
+        e.stopPropagation();
+        pushUndo();
+        // New layer copies the active layer's source so the user can
+        // immediately drag it into a new position.
+        frame.layers.push({
+          band: a.band, idx: a.idx, ymax: a.ymax,
+          offsetX: a.offsetX || 0, offsetY: a.offsetY || 0,
+          flipH: undefined,
+        });
+        setActiveLayerIdx(i, frame.layers.length - 1);
+        saveState(); render();
+      };
+      toolbar.appendChild(addBtn);
+      slot.appendChild(toolbar);
+
+      // ── Layer tabs (only when >1 layer) ─────────────────────────
+      if (frame.layers.length > 1) {
+        const tabs = document.createElement('div');
+        tabs.className = 'layer-tabs';
+        for (let j = 0; j < frame.layers.length; j++) {
+          const tab = document.createElement('button');
+          tab.textContent = `L${j}`;
+          tab.title = `select layer ${j} (${frame.layers[j].band}.${frame.layers[j].idx})`;
+          if (j === li) tab.classList.add('active');
+          tab.onclick = (e) => {
+            e.stopPropagation();
+            setActiveLayerIdx(i, j);
+            render();
+          };
+          // Right-click on a non-primary tab removes that layer.
+          tab.oncontextmenu = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (frame.layers.length === 1) return; // can't remove last
+            if (!confirm(`Remove layer ${j}?`)) return;
+            pushUndo();
+            frame.layers.splice(j, 1);
+            if (state.activeLayer[`${state.currentRow}:${i}`] >= frame.layers.length) {
+              setActiveLayerIdx(i, frame.layers.length - 1);
+            }
+            saveState(); render();
+          };
+          tabs.appendChild(tab);
+        }
+        slot.appendChild(tabs);
+      }
+
+      requestAnimationFrame(() => updateSlotPlacement(slot, i, frame, row));
+      attachSlotDrag(slot, i);
+    }
+    const pos = document.createElement('div');
+    pos.className = 'pos';
+    pos.textContent = i;
+    slot.appendChild(pos);
+    if (frame) {
+      const x = document.createElement('div');
+      x.className = 'x';
+      x.textContent = '×';
+      x.onclick = (e) => { e.stopPropagation(); removeFrameAt(i); };
+      slot.appendChild(x);
+    }
+    slot.addEventListener('dragover', (e) => { e.preventDefault(); slot.classList.add('dragover'); });
+    slot.addEventListener('dragleave', () => slot.classList.remove('dragover'));
+    slot.addEventListener('drop', (e) => {
+      e.preventDefault();
+      slot.classList.remove('dragover');
+      const data = e.dataTransfer.getData('text/sprite');
+      if (data) {
+        const [b, idx] = data.split('.').map(Number);
+        setFrameAt(i, b, idx);
+      }
+    });
+    slot.addEventListener('contextmenu', (e) => {
+      if (!frame) return;
+      e.preventDefault();
+      const li = activeLayerIdx(i);
+      const layer = frame.layers[li];
+      const choice = confirm(`Slot ${i} L${li} (${layer.band}.${layer.idx}):\nOK = set ymax crop\nCancel = reset L${li} offset to 0,0`);
+      if (choice) {
+        const v = prompt(`ymax crop for L${li}. Empty/null clears.`, layer.ymax ?? '');
+        if (v === null) return;
+        pushUndo();
+        layer.ymax = v.trim() === '' ? null : Math.max(1, parseInt(v, 10));
+      } else {
+        pushUndo();
+        layer.offsetX = 0; layer.offsetY = 0;
+      }
+      saveState(); render();
+    });
+    root.appendChild(slot);
+  }
+}
+
+/** The slot is 1.5x the cell on each side (CSS aspect-ratio: 288/312). The
+ *  cell occupies the inner 67% (16.667% padding all around). Coordinates
+ *  are stored in cell-pixel space; this function converts to slot-pixel
+ *  space for display. */
+const SLOT_PAD_RATIO = 0.375; // 37.5% padding each side — slot is 4x cell area
+const SCALE_BUILD = 2.5;
+
+/** Compute placement for a single layer in slot-pixel coordinates. */
+function placeLayer(layer, slotScale, cellOriginX, cellOriginY, rowFlipH) {
+  const s = spriteByLocal(layer.band, layer.idx);
+  if (!s) return null;
+  const sw = s.bbox[2] - s.bbox[0];
+  const sh = layer.ymax ? Math.min(s.bbox[3] - s.bbox[1], layer.ymax) : s.bbox[3] - s.bbox[1];
+  let pw = sw * SCALE_BUILD, ph = sh * SCALE_BUILD;
+  const maxW = CELL_W - 8, maxH = CELL_H - 8;
+  if (pw > maxW || ph > maxH) {
+    const k = Math.min(maxW / sw, maxH / sh);
+    pw = sw * k; ph = sh * k;
+  }
+  const baseX = (CELL_W - pw) / 2;
+  const baseY = CELL_H - ph - 4;
+  const cellX = baseX + (layer.offsetX || 0);
+  const cellY = baseY + (layer.offsetY || 0);
+  // Per-layer flipH wins; otherwise inherit row flipH.
+  const flipH = layer.flipH !== undefined ? layer.flipH : rowFlipH;
+  return {
+    sprite: s, flipH,
+    wPx: pw * slotScale, hPx: ph * slotScale,
+    leftPx: cellOriginX + cellX * slotScale,
+    topPx:  cellOriginY + cellY * slotScale,
+  };
+}
+
+function updateSlotPlacement(slot, slotIdx, frame, row) {
+  const slotRect = slot.getBoundingClientRect();
+  const cellAreaW = slotRect.width * (1 - 2 * SLOT_PAD_RATIO);
+  const cellAreaH = slotRect.height * (1 - 2 * SLOT_PAD_RATIO);
+  const slotScale = Math.min(cellAreaW / CELL_W, cellAreaH / CELL_H);
+  const cellOriginX = slotRect.width * SLOT_PAD_RATIO;
+  const cellOriginY = slotRect.height * SLOT_PAD_RATIO;
+
+  const wrap = slot.querySelector('.frame-wrap');
+  if (wrap) { wrap.style.position = 'absolute'; wrap.style.inset = '0'; }
+  // Clear out any stale layer divs so we always render exactly the
+  // current frame.layers list (not the previous one).
+  const oldLayers = wrap ? wrap.querySelectorAll('.layer-img') : [];
+  oldLayers.forEach(el => el.remove());
+
+  const activeIdx = activeLayerIdx(slotIdx);
+  for (let li = 0; li < frame.layers.length; li++) {
+    const layer = frame.layers[li];
+    const p = placeLayer(layer, slotScale, cellOriginX, cellOriginY, row.flipH);
+    if (!p) continue;
+    const el = document.createElement('div');
+    el.className = 'layer-img';
+    applySpriteBg(el, p.sprite, { ymax: layer.ymax, flipH: p.flipH, wPx: p.wPx, hPx: p.hPx });
+    el.style.position = 'absolute';
+    el.style.left = `${p.leftPx}px`;
+    el.style.top  = `${p.topPx}px`;
+    // Subtle outline on the active layer so the user knows what drag affects.
+    if (li === activeIdx && frame.layers.length > 1) {
+      el.style.outline = '1px dashed rgba(231,76,60,0.7)';
+      el.style.outlineOffset = '0';
+    }
+    wrap.appendChild(el);
+  }
+
+  // Previous-frame ghost — composites the previous frame's primary layer only.
+  const ghost = slot.querySelector('.ghost');
+  if (ghost) {
+    const prev = row.frames[slotIdx - 1];
+    if (prev && prev.layers && prev.layers[0]) {
+      const p = placeLayer(prev.layers[0], slotScale, cellOriginX, cellOriginY, row.flipH);
+      if (p) {
+        applySpriteBg(ghost, p.sprite, { ymax: prev.layers[0].ymax, flipH: p.flipH, wPx: p.wPx, hPx: p.hPx });
+        ghost.style.position = 'absolute';
+        ghost.style.left = `${p.leftPx}px`;
+        ghost.style.top  = `${p.topPx}px`;
+        ghost.style.opacity = '0.18';
+        ghost.style.filter = 'hue-rotate(180deg)';
+      }
+    }
+  }
+
+  const ol = slot.querySelector('.offset');
+  if (ol) {
+    const a = frame.layers[activeIdx];
+    ol.textContent = (a && (a.offsetX || a.offsetY))
+      ? `L${activeIdx} Δ ${a.offsetX|0},${a.offsetY|0}` : '';
+  }
+}
+
+/** Click+drag on a filled slot adjusts the *active* layer's offset in
+ *  cell-pixel coordinates. The active layer is selected via the layer
+ *  tabs at the bottom of the slot; defaults to layer 0 (primary). */
+function attachSlotDrag(slot, slotIdx) {
+  slot.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    // Don't hijack clicks on the inline UI (toolbar buttons, layer tabs,
+    // the X delete affordance) — they need pointerup → click to fire.
+    if (e.target.closest('button, .x')) return;
+    const row = state.rows[state.currentRow];
+    const frame = row.frames[slotIdx];
+    if (!frame) return;
+    const li = activeLayerIdx(slotIdx);
+    const layer = frame.layers[li];
+    if (!layer) return;
+    e.preventDefault();
+    slot.setPointerCapture(e.pointerId);
+    slot.classList.add('dragging');
+    const slotRect = slot.getBoundingClientRect();
+    const cellAreaW = slotRect.width * (1 - 2 * SLOT_PAD_RATIO);
+    const cellAreaH = slotRect.height * (1 - 2 * SLOT_PAD_RATIO);
+    const slotScale = Math.min(cellAreaW / CELL_W, cellAreaH / CELL_H);
+    const startX = e.clientX, startY = e.clientY;
+    const startOffX = layer.offsetX || 0, startOffY = layer.offsetY || 0;
+    let moved = false;
+    // Snapshot once at drag start — a whole drag motion is one undo step.
+    let undoPushed = false;
+    // Snap to the default cell position (offset 0,0 — the dashed red box):
+    // when the dragged sprite is within SNAP_PX cell-pixels of zero offset
+    // on either axis, lock that axis to 0. Drag further to break the snap.
+    const SNAP_PX = 8;
+    const onMove = (ev) => {
+      const dxPx = ev.clientX - startX, dyPx = ev.clientY - startY;
+      const dxCell = Math.round(dxPx / slotScale);
+      const dyCell = Math.round(dyPx / slotScale);
+      let nx = startOffX + dxCell;
+      let ny = startOffY + dyCell;
+      if (Math.abs(nx) <= SNAP_PX) nx = 0;
+      if (Math.abs(ny) <= SNAP_PX) ny = 0;
+      if (layer.offsetX === nx && layer.offsetY === ny) return;
+      if (!undoPushed) { pushUndo(); undoPushed = true; }
+      layer.offsetX = nx;
+      layer.offsetY = ny;
+      moved = true;
+      updateSlotPlacement(slot, slotIdx, frame, state.rows[state.currentRow]);
+    };
+    const onUp = () => {
+      slot.releasePointerCapture(e.pointerId);
+      slot.classList.remove('dragging');
+      slot.removeEventListener('pointermove', onMove);
+      slot.removeEventListener('pointerup', onUp);
+      slot.removeEventListener('pointercancel', onUp);
+      if (moved) { saveState(); refreshExport(); }
+    };
+    slot.addEventListener('pointermove', onMove);
+    slot.addEventListener('pointerup', onUp);
+    slot.addEventListener('pointercancel', onUp);
+  });
+}
+
+function setFrameAt(i, band, localIdx) {
+  pushUndo();
+  const row = state.rows[state.currentRow];
+  while (row.frames.length <= i) row.frames.push(null);
+  // If the slot already has a frame, replace the *active* layer's source
+  // (preserves any layered composition the user has built up). Otherwise
+  // create a fresh single-layer frame.
+  const existing = row.frames[i];
+  if (existing && existing.layers && existing.layers.length) {
+    const li = activeLayerIdx(i);
+    existing.layers[li] = { ...existing.layers[li], band, idx: localIdx };
+  } else {
+    row.frames[i] = {
+      layers: [{ band, idx: localIdx, ymax: null, offsetX: 0, offsetY: 0, flipH: undefined }],
+    };
+  }
+  while (row.frames.length && row.frames[row.frames.length - 1] == null) row.frames.pop();
+  saveState(); render();
+}
+function removeFrameAt(i) {
+  pushUndo();
+  const row = state.rows[state.currentRow];
+  row.frames.splice(i, 1);
+  saveState(); render();
+}
+function maxFramesForMode() { return state.mode === 'flexible' ? 24 : 8; }
+function addFrameToCurrentRow(band, localIdx) {
+  const row = state.rows[state.currentRow];
+  const cap = maxFramesForMode();
+  if (row.frames.length >= cap) { flash(`Row full (${cap} max in ${state.mode} mode)`); return; }
+  pushUndo();
+  row.frames.push({
+    layers: [{ band, idx: localIdx, ymax: null, offsetX: 0, offsetY: 0, flipH: undefined }],
+  });
+  saveState(); render();
+}
+document.getElementById('reset-row').onclick = () => {
+  pushUndo();
+  state.rows[state.currentRow].frames = [];
+  saveState(); render();
+};
+
+// ─── Live preview ────────────────────────────────────────────────────
+function startPreview() {
+  if (previewTimer) clearInterval(previewTimer);
+  const row = state.rows[state.currentRow];
+  if (!row.frames.length) { document.getElementById('preview').style.cssText = ''; return; }
+  previewFrame = previewFrame % row.frames.length;
+  drawPreviewFrame();
+  const interval = Math.round(1000 / Math.max(1, row.fps));
+  previewTimer = setInterval(() => {
+    previewFrame = (previewFrame + 1) % row.frames.length;
+    drawPreviewFrame();
+  }, interval);
+}
+function drawPreviewFrame() {
+  const row = state.rows[state.currentRow];
+  const f = row.frames[previewFrame];
+  const wrap = document.getElementById('preview');
+  // Clear any prior layer divs we appended.
+  wrap.innerHTML = '';
+  if (!f || !f.layers || !f.layers.length) {
+    document.getElementById('preview-info').textContent = '(no frame)';
+    return;
+  }
+  const previewFrameEl = document.getElementById('preview-frame');
+  const pr = previewFrameEl.getBoundingClientRect();
+  const cellAreaW = pr.width * (1 - 2 * SLOT_PAD_RATIO);
+  const cellAreaH = pr.height * (1 - 2 * SLOT_PAD_RATIO);
+  const previewScale = Math.min(cellAreaW / CELL_W, cellAreaH / CELL_H);
+  const cellOriginX = pr.width * SLOT_PAD_RATIO;
+  const cellOriginY = pr.height * SLOT_PAD_RATIO;
+
+  for (const layer of f.layers) {
+    const p = placeLayer(layer, previewScale, cellOriginX, cellOriginY, row.flipH);
+    if (!p) continue;
+    const el = document.createElement('div');
+    applySpriteBg(el, p.sprite, { ymax: layer.ymax, flipH: p.flipH, wPx: p.wPx, hPx: p.hPx });
+    el.style.position = 'absolute';
+    el.style.left = `${p.leftPx}px`;
+    el.style.top  = `${p.topPx}px`;
+    wrap.appendChild(el);
+  }
+  // Make wrap fill the preview-frame so absolute layers position correctly.
+  wrap.style.position = 'absolute'; wrap.style.inset = '0';
+  // Info line summarises the active layer (no good way to summarise N layers).
+  const a = f.layers[0];
+  const layerInfo = f.layers.length > 1 ? ` · ${f.layers.length} layers` : '';
+  document.getElementById('preview-info').textContent =
+    `frame ${previewFrame+1}/${row.frames.length} · ${a.band}.${a.idx}` +
+    (a.ymax ? ` ymax=${a.ymax}` : '') +
+    (a.offsetX || a.offsetY ? ` Δ${a.offsetX|0},${a.offsetY|0}` : '') +
+    layerInfo + ` · ${row.fps} fps`;
+}
+
+// ─── Export ──────────────────────────────────────────────────────────
+function buildManifest() {
+  // In flexible mode we use whatever max frame count the rows actually
+  // need, capped at 24. Codex mode locks to 8.
+  const cols = state.mode === 'flexible'
+    ? Math.max(8, ...ROWS.map(r => state.rows[r.id].frames.length))
+    : 8;
+  const atlas = {
+    cols, rows: ROWS.length,
+    rowsDef: ROWS.map(r => ({
+      index: r.index, id: r.id,
+      frames: Math.min(cols, Math.max(1, state.rows[r.id].frames.length)),
+      fps: state.rows[r.id].fps,
+    })),
+  };
+  const actions = {};
+  for (const r of ROWS) {
+    const a = { row: r.id, loops: 1 };
+    const rs = state.rows[r.id];
+    if (rs.jumpHeight) a.jumpHeight = rs.jumpHeight;
+    if (rs.expandUp) a.expandUp = rs.expandUp;
+    actions[r.id] = a;
+  }
+  // Preserve hadouken's fireball spawn from the original manifest.
+  if (actions.hadouken) actions.hadouken.spawn = [{
+    atFrame: 3, row: 'fireball', dx: -800, dy: -8,
+    durationMs: 1000, offsetX: -28, offsetY: 4, size: 72, fps: 14,
+  }];
+  if (actions.taunt) actions.taunt.say = 'Hadouken!';
+  if (actions.hadouken) actions.hadouken.say = 'Hadouken!';
+  if (actions.shoryuken) actions.shoryuken.say = 'Shoryuken!';
+  return {
+    id: 'ryu', displayName: 'Ryu', accent: '#e74c3c',
+    spritesheet: 'spritesheet.webp',
+    atlas, actions,
+    stateMap: {
+      idle: 'idle', thinking: 'hadouken', building: 'kick',
+      delegating: 'walk-right', leaving: 'walk-left',
+      waiting: 'wait', greeting: 'taunt',
+      success: 'shoryuken', error: 'knockdown',
+    },
+  };
+}
+function buildPyPicks() {
+  // Emits a JSON object — read by build_local.py via picks.json. The top
+  // level carries the cols setting so the build script knows how wide to
+  // make the atlas (8 in codex mode, up to 24 in flexible).
+  const cols = state.mode === 'flexible'
+    ? Math.max(8, ...ROWS.map(r => state.rows[r.id].frames.length))
+    : 8;
+  const out = {
+    mode: state.mode,
+    cols,
+    rows: ROWS.map(r => {
+      const rs = state.rows[r.id];
+      return {
+        rowIndex: r.index,
+        rowId: r.id,
+        flipH: rs.flipH,
+        fps: rs.fps,
+        jumpHeight: rs.jumpHeight || 0,
+        expandUp: rs.expandUp || 0,
+        frames: rs.frames.map(f => ({
+          // Round-trip layers verbatim. Each layer:
+          //   { band, idx, ymax, offsetX, offsetY, flipH? }
+          layers: (f.layers || []).map(l => ({
+            band: l.band, idx: l.idx,
+            ymax: l.ymax || null,
+            offsetX: l.offsetX || 0, offsetY: l.offsetY || 0,
+            flipH: l.flipH,
+          })),
+        })),
+      };
+    }),
+  };
+  return JSON.stringify(out, null, 2);
+}
+function refreshExport() {
+  document.getElementById('export').value = JSON.stringify(buildManifest(), null, 2);
+}
+function copyManifest() {
+  navigator.clipboard.writeText(JSON.stringify(buildManifest(), null, 2));
+  flash('Manifest copied');
+}
+function copyBuildPy() {
+  navigator.clipboard.writeText(buildPyPicks());
+  flash('picks.json copied — save to /tmp/ryu/local/picks.json');
+}
+function downloadPicks() {
+  const blob = new Blob([buildPyPicks()], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'picks.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Per-row controls ────────────────────────────────────────────────
+function bindRowControls() {
+  const fps = document.getElementById('fps-in');
+  const flip = document.getElementById('flip-in');
+  const jump = document.getElementById('jump-in');
+  const expand = document.getElementById('expand-in');
+  // Coalesce typing/scrubbing into a single undo step using a focus-based
+  // snapshot: take one snapshot when the field gains focus, then update
+  // freely until blur. Keeps the undo stack readable.
+  const wireField = (el, apply) => {
+    let snapshotTaken = false;
+    const onFocus = () => { snapshotTaken = false; };
+    const onInput = () => {
+      if (!snapshotTaken) { pushUndo(); snapshotTaken = true; }
+      apply();
+    };
+    el.addEventListener('focus', onFocus);
+    el.addEventListener('input', onInput);
+    el.addEventListener('change', onInput);
+  };
+  wireField(fps, () => { state.rows[state.currentRow].fps = +fps.value || 6; saveState(); render(); });
+  flip.addEventListener('change', () => { pushUndo(); state.rows[state.currentRow].flipH = flip.checked; saveState(); render(); });
+  wireField(jump, () => { state.rows[state.currentRow].jumpHeight = +jump.value || 0; saveState(); refreshExport(); });
+  wireField(expand, () => { state.rows[state.currentRow].expandUp = +expand.value || 0; saveState(); refreshExport(); });
+
+  const mode = document.getElementById('mode-select');
+  mode.value = state.mode || 'codex';
+  mode.onchange = () => {
+    const newMode = mode.value;
+    if (newMode === 'codex') {
+      const overflow = Object.entries(state.rows).filter(([, r]) => r.frames.length > 8);
+      if (overflow.length) flash(`${overflow.length} row(s) have >8 frames — trim before exporting Codex`);
+    }
+    pushUndo();
+    state.mode = newMode;
+    saveState();
+    render();
+  };
+}
+function syncRowControls() {
+  const r = state.rows[state.currentRow];
+  document.getElementById('fps-in').value = r.fps;
+  document.getElementById('frames-in').value = r.frames.length;
+  document.getElementById('flip-in').checked = r.flipH;
+  document.getElementById('jump-in').value = r.jumpHeight || '';
+  document.getElementById('expand-in').value = r.expandUp || '';
+  document.getElementById('row-info').textContent =
+    `${r.frames.length} frame${r.frames.length===1?'':'s'} · ${r.fps} fps · ${Math.round(r.frames.length / r.fps * 1000)}ms`;
+  document.getElementById('mode-select').value = state.mode;
+  const cap = maxFramesForMode();
+  document.getElementById('mode-info').textContent =
+    state.mode === 'codex'
+      ? `cells: 8 max · matches Codex defaults`
+      : `cells: ${cap} max · custom atlas only (no codex-pets compat)`;
+}
+
+function render() {
+  syncRowControls();
+  buildSlots();
+  startPreview();
+  refreshExport();
+}
+
+// ─── Keyboard shortcuts ──────────────────────────────────────────────
+window.addEventListener('keydown', (e) => {
+  // Ignore when the user is typing in an input field — number scrubbing
+  // and prompt() must keep their native behaviour.
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+  if (inField) return;
+  const meta = e.ctrlKey || e.metaKey;
+  if (!meta) return;
+  if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') { e.preventDefault(); redo(); }
+});
+
+(async function main() {
+  await loadSprites();
+  loadState();
+  migrateState();
+  buildRowSelect();
+  buildBands();
+  bindRowControls();
+  render();
+  refreshUndoButtons();
+})();
+</script>
+
+</body>
+</html>

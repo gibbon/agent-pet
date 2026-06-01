@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pet Tester — try a rich-action manifest live on a page</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 24px 24px 80px;
+    font-family: -apple-system, system-ui, sans-serif; font-size: 14px;
+    background: #f5f5f7; color: #1a1a1a; line-height: 1.5;
+  }
+  body.dark { background: #0b1018; color: #eee; }
+  h1 { margin: 0 0 4px; font-size: 20px; }
+  h2 { font-size: 14px; margin: 24px 0 8px; color: #555; }
+  body.dark h2 { color: #aaa; }
+  p { margin: 4px 0; color: #555; max-width: 640px; }
+  body.dark p { color: #aaa; }
+
+  .toolbar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 12px 16px; background: #fff; border: 1px solid #ddd;
+    border-radius: 6px; margin-bottom: 12px;
+  }
+  body.dark .toolbar { background: #161e2c; border-color: #2a3550; }
+  .toolbar select, .toolbar button {
+    padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;
+    background: #fff; font-size: 13px;
+  }
+  body.dark .toolbar select, body.dark .toolbar button {
+    background: #2a334a; border-color: #2a3550; color: #eee;
+  }
+  .toolbar button { cursor: pointer; }
+  .toolbar button:hover { background: #f0f0f0; }
+  body.dark .toolbar button:hover { background: #34405c; }
+  .toolbar .spacer { flex: 1; }
+
+  .actions {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 12px 16px; background: #fff; border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  body.dark .actions { background: #161e2c; border-color: #2a3550; }
+  .actions button {
+    padding: 8px 14px; border: 1px solid #2c87ff; border-radius: 4px;
+    background: #2c87ff; color: #fff; font-size: 13px; cursor: pointer;
+    font-weight: 500;
+  }
+  .actions button:hover { background: #1d75e8; }
+  .actions button:active { transform: scale(0.97); }
+  .actions .empty { color: #888; font-style: italic; padding: 4px; }
+
+  .info-box {
+    margin-top: 16px; padding: 12px 16px;
+    background: #fff; border: 1px solid #ddd; border-radius: 6px;
+    font-family: ui-monospace, monospace; font-size: 12px;
+    white-space: pre-wrap; max-height: 200px; overflow: auto;
+  }
+  body.dark .info-box { background: #161e2c; border-color: #2a3550; }
+
+  .demo-content {
+    margin-top: 32px; padding: 20px; background: #fff;
+    border: 1px solid #ddd; border-radius: 6px; max-width: 640px;
+  }
+  body.dark .demo-content { background: #161e2c; border-color: #2a3550; }
+  .demo-content h3 { margin: 0 0 8px; }
+  .demo-content p { color: #444; }
+  body.dark .demo-content p { color: #ccc; }
+
+  .back-link {
+    position: fixed; top: 12px; left: 12px; z-index: 50;
+    text-decoration: none; color: #555;
+    background: #fff; border: 1px solid #ddd;
+    padding: 4px 10px; border-radius: 4px; font-size: 13px;
+  }
+  .back-link:hover { background: #f0f0f0; color: #000; }
+  body.dark .back-link {
+    background: #161e2c; border-color: #2a3550; color: #ccc;
+  }
+  body.dark .back-link:hover { background: #2a334a; color: #fff; }
+</style>
+</head>
+<body>
+
+<a href="/" class="back-link" title="Back to index">← index</a>
+<h1>Pet Tester</h1>
+<p>Live preview of a rich-action manifest running as a real agent-pet widget on a page.
+Pick a saved manifest from the dropdown (saves come from <a href="/rich-editor.html">the rich editor</a>'s 💾 Save), or stick with the default /ryu.json.</p>
+
+<div class="toolbar">
+  <label for="manifest-picker">Manifest:</label>
+  <select id="manifest-picker">
+    <option value="__default__">Default — Ryu (/ryu.json)</option>
+  </select>
+  <button onclick="reloadManifest()" title="Reload the picker's manifest from scratch (useful after saving in another tab)">↻ reload</button>
+  <span class="spacer"></span>
+  <button onclick="document.body.classList.toggle('dark')">🌗 theme</button>
+  <a href="/rich-editor.html" style="text-decoration:none;color:inherit;font-size:13px">← editor</a>
+</div>
+
+<h2>Actions</h2>
+<div class="actions" id="action-buttons">
+  <span class="empty">Loading…</span>
+</div>
+
+<h2>Manifest summary</h2>
+<div class="info-box" id="manifest-info">—</div>
+
+<div class="demo-content">
+  <h3>Sample page content</h3>
+  <p>This is a normal-looking page where the agent-pet widget is embedded. The pet is the small character on screen — it tracks your scroll position, plays its idle animation, and reacts to the action buttons above. Drop the widget on any page exactly like this:</p>
+  <pre style="background:#f0f0f0;padding:8px;border-radius:4px;font-size:11px;overflow:auto;">&lt;script src="/dist/agent-pet-widget.iife.js"&gt;&lt;/script&gt;
+&lt;script&gt;AgentPet.loadManifest(yourManifest)&lt;/script&gt;</pre>
+  <p>The rich runtime is lazy-loaded only if the manifest has <code>runtime: "rich"</code>, so atlas-only pets pay no extra cost.</p>
+</div>
+
+<!-- Widget loader -->
+<script src="/dist/agent-pet-widget.iife.js"></script>
+<script src="/presets.js"></script>
+<script>
+const SAVES_INDEX_KEY = 'ryu-rich-editor:saves:index';
+const SAVE_KEY_PREFIX = 'ryu-rich-editor:saves:';
+
+const HUD_FILTER = new Set(['idle', 'walk-left', 'walk-right', 'wait']);
+
+function listSaves() {
+  let idx = [];
+  try { idx = JSON.parse(localStorage.getItem(SAVES_INDEX_KEY) ?? '[]'); } catch {}
+  // Also surface any disk-backed saves served from /saves/index.json
+  // (populated by the local serve.py and copied into the deploy by
+  // the build script). De-dup by slug, disk entries take priority
+  // since they're typically the canonical version.
+  const disk = window.__DISK_SAVES__ ?? [];
+  const seen = new Set(disk.map((e) => e.slug));
+  return [...disk, ...idx.filter((e) => !seen.has(e.slug))];
+}
+async function loadDiskSavesIndex() {
+  try {
+    const r = await fetch('/saves/index.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    const arr = await r.json();
+    if (Array.isArray(arr)) window.__DISK_SAVES__ = arr;
+  } catch {}
+}
+
+function refreshPicker() {
+  const sel = document.getElementById('manifest-picker');
+  const current = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  // Group 1: starter presets — same data the editor's 📦 Presets modal
+  // shows. Each is a `preset:<slug>` value so loadFromPicker() routes
+  // it to resolvePresetManifest() instead of the localStorage path.
+  if (window.STARTER_PRESETS?.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Starter presets';
+    for (const p of window.STARTER_PRESETS) {
+      const opt = document.createElement('option');
+      opt.value = `preset:${p.slug}`;
+      opt.textContent = p.label;
+      if (`preset:${p.slug}` === current) opt.selected = true;
+      group.appendChild(opt);
+    }
+    sel.appendChild(group);
+  }
+  // Group 2: localStorage saves from the editor.
+  const saves = listSaves();
+  if (saves.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Saved versions';
+    for (const e of saves) {
+      const opt = document.createElement('option');
+      opt.value = e.slug;
+      opt.textContent = e.name ?? e.slug;
+      if (e.slug === current) opt.selected = true;
+      group.appendChild(opt);
+    }
+    sel.appendChild(group);
+  }
+}
+
+/** Build a fully-resolved manifest ready to hand to AgentPet. Saves
+ *  written by the editor don't necessarily include the source-frame
+ *  bbox `sprites` array — that's only filled in at export time. So if
+ *  the manifest has rich actions referencing source frames but no
+ *  embedded sprites, fetch them from /rips/<slug>/<slug>.json and
+ *  splice them in. Mutates a clone, leaves localStorage untouched. */
+async function resolveSavedManifest(blob) {
+  const m = JSON.parse(JSON.stringify(blob.manifest));
+  const ripSlug = blob.activeRipSlug;
+  const usesSourceFrames = m.richActions
+    && Object.values(m.richActions).some((a) => (a.tracks ?? []).some((t) => t.frames?.length));
+  if (usesSourceFrames && (!m.sprites || !m.sourceImage)) {
+    if (!ripSlug || ripSlug === '__atlas__') {
+      // Atlas-as-rip — sourceImage is the spritesheet itself.
+      if (m.spritesheet) m.sourceImage = m.spritesheet;
+      // Build synthetic sprites from atlas grid.
+      if (m.atlas?.cols && m.atlas?.rows && m.spritesheet) {
+        // Probe atlas dims for cell math.
+        const dims = await new Promise((res) => {
+          const im = new Image();
+          im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight });
+          im.onerror = () => res({ w: 0, h: 0 });
+          im.src = m.spritesheet;
+        });
+        if (dims.w && dims.h) {
+          const cw = dims.w / m.atlas.cols, ch = dims.h / m.atlas.rows;
+          const arr = [];
+          for (let r = 0; r < m.atlas.rows; r++) {
+            for (let c = 0; c < m.atlas.cols; c++) {
+              arr.push({ band: r, idx: c, bbox: [c*cw, r*ch, (c+1)*cw, (r+1)*ch] });
+            }
+          }
+          m.sprites = arr;
+        }
+      }
+    } else {
+      // Regular rip — fetch its sprites.json.
+      try {
+        const list = await fetch(`/rips/${ripSlug}/${ripSlug}.json`).then((r) => r.json());
+        m.sprites = list;
+        if (!m.sourceImage) m.sourceImage = `/rips/${ripSlug}/${ripSlug}.png`;
+      } catch (e) {
+        console.warn(`[pet-tester] failed to fetch /rips/${ripSlug}/${ripSlug}.json — source-frame tracks will not render.`);
+      }
+    }
+  }
+  // Atlas-only manifests can ship as-is.
+  m.runtime = 'rich'; // ensures rich runtime is loaded for tracks/spawns/keyframes
+  return m;
+}
+
+// ─── Idle loop ──────────────────────────────────────────────────────
+// The widget's static-image fallback shows the spritesheet when a
+// rich-only manifest has no atlas rowsDef — fine for non-action time
+// since the spritesheet stub is a 1×1 transparent PNG. To make the pet
+// visibly animate while idle, replay the rich runtime's `idle` action
+// on a loop. The loop pauses while a non-idle action is playing so
+// they don't interrupt each other; resumes once it would have ended.
+let idleLoopTimer = null;
+let idleManifest = null;
+let nonIdlePlayingUntilMs = 0;
+function startIdleLoop(m) {
+  idleManifest = m;
+  scheduleNextIdle(0);
+}
+function stopIdleLoop() {
+  if (idleLoopTimer) { clearTimeout(idleLoopTimer); idleLoopTimer = null; }
+  idleManifest = null;
+}
+function scheduleNextIdle(delayMs) {
+  if (idleLoopTimer) clearTimeout(idleLoopTimer);
+  idleLoopTimer = setTimeout(() => {
+    if (!idleManifest) return;
+    if (Date.now() < nonIdlePlayingUntilMs) {
+      // A user-triggered action is still going — wait until it ends
+      // and then loop idle from there.
+      scheduleNextIdle(nonIdlePlayingUntilMs - Date.now() + 30);
+      return;
+    }
+    const idleAction = idleManifest.richActions?.idle;
+    if (!idleAction) return;
+    AgentPet.play('idle');
+    scheduleNextIdle(idleAction.durationMs);
+  }, delayMs);
+}
+
+// Wrap AgentPet.play so non-idle actions push out the idle loop until
+// they finish. Without this the loop fires mid-action and the rich
+// runtime queues the second one, causing a visible double-play.
+//
+// Note: AgentPet is installed in window.AgentPet by the widget's boot()
+// which runs on DOMContentLoaded — *after* this inline script parses.
+// So we install the wrap inside DOMContentLoaded instead of at parse
+// time (where AgentPet would be undefined and .bind would throw).
+function installPlayWrap() {
+  if (!window.AgentPet?.play) return false;
+  const orig = window.AgentPet.play.bind(window.AgentPet);
+  window.AgentPet.play = function (name) {
+    orig(name);
+    if (name !== 'idle' && idleManifest?.richActions?.[name]?.durationMs) {
+      nonIdlePlayingUntilMs = Date.now() + idleManifest.richActions[name].durationMs;
+    }
+  };
+  return true;
+}
+if (!installPlayWrap()) {
+  document.addEventListener('DOMContentLoaded', installPlayWrap);
+}
+
+async function loadFromPicker() {
+  const sel = document.getElementById('manifest-picker');
+  const slug = sel.value;
+  setManifestInfo('loading…');
+  stopIdleLoop();
+  if (slug === '__default__') {
+    const m = await fetch('/ryu.json').then((r) => r.json());
+    AgentPet.loadManifest(m);
+    buildActionButtons(m);
+    setManifestInfo(formatSummary(m, '/ryu.json'));
+    // Default Ryu has an atlas idle row — no idle loop needed.
+    return;
+  }
+  if (slug.startsWith('preset:')) {
+    const presetSlug = slug.slice('preset:'.length);
+    const preset = (window.STARTER_PRESETS ?? []).find((p) => p.slug === presetSlug);
+    if (!preset) { setManifestInfo('preset not found'); return; }
+    const m = await window.resolvePresetManifest(preset);
+    await AgentPet.loadManifest(m);
+    buildActionButtons(m);
+    setManifestInfo(formatSummary(m, `preset (${preset.ripSlug})`));
+    // Source-frame manifests have no atlas idle — drive idle via the
+    // rich runtime on a loop so the pet visibly animates at rest.
+    if (m.richActions?.idle) startIdleLoop(m);
+    return;
+  }
+  let blob;
+  try { blob = JSON.parse(localStorage.getItem(SAVE_KEY_PREFIX + slug) ?? 'null'); } catch {}
+  // Fall back to /saves/<slug>.json on disk if localStorage doesn't
+  // have it — normal case after opening the page on a fresh browser
+  // that's never run the editor.
+  if (!blob?.manifest) {
+    try {
+      const r = await fetch(`/saves/${encodeURIComponent(slug)}.json`, { cache: 'no-store' });
+      if (r.ok) blob = await r.json();
+    } catch {}
+  }
+  if (!blob?.manifest) { setManifestInfo('save not found'); return; }
+  const resolved = await resolveSavedManifest(blob);
+  // If the save is rich-only (no atlas rowsDef), use the same 1×1
+  // transparent stub the presets use so the static-image fallback
+  // doesn't fill the pet element with the source rip.
+  const hasAtlasIdle = resolved.atlas?.rowsDef?.some((r) => r.id === 'idle');
+  if (!hasAtlasIdle && resolved.richActions?.idle) {
+    resolved.spritesheet = '/blank-1x1.png';
+    if (!resolved.atlas) resolved.atlas = { cols: 1, rows: 1, rowsDef: [] };
+  }
+  await AgentPet.loadManifest(resolved);
+  buildActionButtons(resolved);
+  setManifestInfo(formatSummary(resolved, blob.activeRipSlug));
+  if (!hasAtlasIdle && resolved.richActions?.idle) startIdleLoop(resolved);
+}
+
+function buildActionButtons(m) {
+  const container = document.getElementById('action-buttons');
+  container.innerHTML = '';
+  if (!m) {
+    container.innerHTML = '<span class="empty">No manifest loaded.</span>';
+    return;
+  }
+  const richKeys = Object.keys(m.richActions ?? {});
+  const legacyKeys = richKeys.length ? [] : Object.keys(m.actions ?? {});
+  const all = (richKeys.length ? richKeys : legacyKeys).filter((k) => !HUD_FILTER.has(k));
+  if (!all.length) {
+    container.innerHTML = '<span class="empty">No actions in this manifest.</span>';
+    return;
+  }
+  all.sort();
+  for (const name of all) {
+    const btn = document.createElement('button');
+    btn.textContent = name;
+    btn.onclick = () => AgentPet.play(name);
+    container.appendChild(btn);
+  }
+}
+
+function setManifestInfo(text) {
+  document.getElementById('manifest-info').textContent = text;
+}
+function formatSummary(m, source) {
+  if (!m) return '—';
+  const richCount = Object.keys(m.richActions ?? {}).length;
+  const legacyCount = Object.keys(m.actions ?? {}).length;
+  const trackCount = Object.values(m.richActions ?? {}).reduce((acc, a) => acc + (a.tracks?.length ?? 0), 0);
+  const spawnCount = Object.values(m.richActions ?? {}).reduce((acc, a) => acc + (a.spawn?.length ?? 0), 0);
+  return [
+    `source:           ${source ?? '(unknown)'}`,
+    `id:               ${m.id ?? '?'}`,
+    `displayName:      ${m.displayName ?? '?'}`,
+    `runtime:          ${m.runtime ?? '(legacy)'}`,
+    `spritesheet:      ${m.spritesheet ?? '(none)'}`,
+    `sourceImage:      ${m.sourceImage ?? '(none)'}`,
+    `embedded sprites: ${m.sprites?.length ?? 0}`,
+    `rich actions:     ${richCount} (${trackCount} tracks, ${spawnCount} spawns total)`,
+    `legacy actions:   ${legacyCount}`,
+  ].join('\n');
+}
+
+function reloadManifest() {
+  refreshPicker();
+  loadFromPicker();
+}
+
+document.getElementById('manifest-picker').addEventListener('change', loadFromPicker);
+addEventListener('storage', (e) => {
+  if (e.key === SAVES_INDEX_KEY || e.key?.startsWith(SAVE_KEY_PREFIX)) refreshPicker();
+});
+
+// Boot — populate picker, load whatever is selected by default. Defer
+// the manifest load until after DOMContentLoaded so window.AgentPet
+// (installed by the widget's DOMContentLoaded handler) is available.
+async function bootTester() {
+  try {
+    await loadDiskSavesIndex();
+    refreshPicker();
+    await loadFromPicker();
+  } catch (e) {
+    // Surface in the page so a failed boot doesn't just silently leave
+    // empty buttons + summary — easier to debug than hunting the console.
+    setManifestInfo(`boot error: ${e?.message ?? e}`);
+    console.error('[pet-tester] boot failed:', e);
+  }
+}
+function whenReady() {
+  // Three states to handle:
+  //  - AgentPet already on window (rare race after fast navigation) — boot now
+  //  - document still parsing — wait for DOMContentLoaded
+  //  - document already past DOMContentLoaded but AgentPet not yet on window
+  //    (the widget IIFE listens for the same event; should fire any moment)
+  //    — defer one tick.
+  if (window.AgentPet?.play) { bootTester(); return; }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootTester);
+    return;
+  }
+  // DOM is ready but the widget hasn't registered AgentPet yet — give
+  // it a microtask, then a few macrotasks, before giving up.
+  let tries = 0;
+  const tick = () => {
+    if (window.AgentPet?.play) bootTester();
+    else if (++tries < 40) setTimeout(tick, 50);
+    else bootTester(); // last-ditch — bootTester can show a useful error
+  };
+  tick();
+}
+whenReady();
+</script>
+
+</body>
+</html>

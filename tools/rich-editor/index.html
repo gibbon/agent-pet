@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>agent-pet rich-editor</title>
+<style>
+  body {
+    background: #111; color: #eee;
+    font-family: -apple-system, system-ui, sans-serif;
+    padding: 1.5rem 1rem; max-width: 640px; margin: 0 auto;
+    line-height: 1.5;
+  }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p.intro { color: #aaa; margin: 0 0 18px; font-size: 13px; }
+  a.tile {
+    display: block; padding: 12px 16px; margin: 8px 0;
+    background: #2a2a35; color: #eee; text-decoration: none;
+    border-radius: 6px; border: 1px solid #444;
+    transition: background 120ms;
+  }
+  a.tile:hover { background: #353545; }
+  a.tile strong { font-size: 14px; }
+  a.tile small { color: #888; display: block; margin-top: 4px; font-size: 12px; }
+  h2 { font-size: 12px; text-transform: uppercase; color: #888;
+       letter-spacing: 0.5px; margin: 22px 0 6px; }
+</style>
+</head>
+<body>
+<h1>agent-pet rich editor</h1>
+<p class="intro">Local toolchain for authoring rich-runtime pet actions and trying them on the production widget.</p>
+
+<h2>Author</h2>
+<a class="tile" href="/rich-editor.html">
+  <strong>📐 Rich action editor</strong>
+  <small>keyframed transforms, timeline scrubber, multi-track actions, particle emitters, multi-slot saves</small>
+</a>
+<a class="tile" href="/editor.html">
+  <strong>🎨 Sprite editor (legacy)</strong>
+  <small>pick frames, drag to position, layer multiple sprites, undo</small>
+</a>
+
+<h2>Run</h2>
+<a class="tile" href="/pet-tester.html">
+  <strong>🐾 Pet tester</strong>
+  <small>load any preset or saved manifest into the production agent-pet widget on a real-looking page</small>
+</a>
+<a class="tile" href="/playground.html">
+  <strong>🌐 3D playground</strong>
+  <small>three.js scene — WASD/arrows to walk, 1-9 to trigger actions, character picker for presets + saves</small>
+</a>
+<a class="tile" href="/test.html">
+  <strong>🧪 Manifest demo (legacy)</strong>
+  <small>basic-runtime smoke test against /ryu.json — hadouken, shoryuken, kicks</small>
+</a>
+
+</body>
+</html>

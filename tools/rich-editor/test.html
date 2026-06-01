@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ryu — manifest demo</title>
+  <style>
+    body { background:#111; color:#eee; font-family: monospace; padding: 2rem; }
+    button { padding: .5rem 1rem; margin: .25rem; background:#333; color:#eee; border:1px solid #555; cursor:pointer; }
+    button:hover { background:#444; }
+    h2 { margin-top: 2rem; }
+    code, pre { background:#222; padding: .15rem .35rem; border-radius: 3px; }
+    #log { background:#0a0a0a; border:1px solid #333; padding:.5rem; min-height:80px; white-space:pre-wrap; font-size:.85rem; }
+    .ok { color:#7c7; } .err { color:#f77; } .info { color:#7ad; }
+    .moves button { background:#3a2a2a; }
+    .moves button:hover { background:#4d3535; }
+  </style>
+</head>
+<body>
+  <a href="/" title="Back to index" style="display:inline-block;text-decoration:none;color:#888;background:#222;border:1px solid #444;padding:4px 10px;border-radius:4px;font-size:13px;margin-bottom:12px">← index</a>
+  <h1>Ryu — manifest demo</h1>
+
+  <p>Load via <code>AgentPet.loadManifest('/ryu.json')</code>. Manifest defines a custom 11-row atlas + named actions including a hadouken that spawns a fireball projectile across the screen.</p>
+
+  <button onclick="resetLS()">Reset localStorage + reload</button>
+  <button onclick="probeImage()">Probe spritesheet URL</button>
+
+  <h2>Basic-runtime actions</h2>
+  <div class="moves">
+    <button onclick="AgentPet.play('hadouken')">hadouken (fireball)</button>
+    <button onclick="AgentPet.play('shoryuken')">SHORYUKEN (full 8 frames)</button>
+    <button onclick="AgentPet.play('kick')">kick (full 7 frames)</button>
+    <button onclick="AgentPet.play('spinkick')">spin kick</button>
+    <button onclick="AgentPet.play('taunt')">taunt</button>
+    <button onclick="AgentPet.play('knockdown')">knockdown</button>
+  </div>
+
+  <h2>Rich-runtime actions (lazy-loaded addon)</h2>
+  <div class="moves" style="background:#2a1a1a; padding:8px; border-radius:6px">
+    <button onclick="AgentPet.play('rich-hadouken')">⚡ rich hadouken (keyframed + parabolic + particles)</button>
+    <button onclick="AgentPet.play('boomerang-kick')">🌀 boomerang tatsumaki</button>
+  </div>
+
+  <h2>Persistent moods (setState — routed through manifest stateMap)</h2>
+  <button onclick="AgentPet.setState('idle')">idle</button>
+  <button onclick="AgentPet.setState('thinking')">thinking → hadouken</button>
+  <button onclick="AgentPet.setState('building')">building → kick</button>
+  <button onclick="AgentPet.setState('delegating')">delegating → walk-right</button>
+  <button onclick="AgentPet.setState('leaving')">leaving → walk-left</button>
+  <button onclick="AgentPet.setState('waiting')">waiting</button>
+  <button onclick="AgentPet.setState('greeting')">greeting → taunt</button>
+  <button onclick="AgentPet.setState('success')">success → SHORYUKEN</button>
+  <button onclick="AgentPet.setState('error')">error → knockdown</button>
+
+  <h2>Diagnostics</h2>
+  <div id="log"></div>
+
+  <script>
+    const log = (msg, cls='info') => {
+      const el = document.getElementById('log');
+      const t = new Date().toLocaleTimeString();
+      el.innerHTML += `<span class="${cls}">[${t}] ${msg}</span>\n`;
+    };
+    function resetLS() {
+      Object.keys(localStorage).filter(k => k.startsWith('agent-pet')).forEach(k => {
+        log('removed ' + k, 'info');
+        localStorage.removeItem(k);
+      });
+      setTimeout(() => location.reload(), 200);
+    }
+    function probeImage() {
+      const url = '/spritesheet.webp';
+      log('probing ' + url, 'info');
+      const im = new Image();
+      im.onload = () => log(`spritesheet OK: ${im.naturalWidth}×${im.naturalHeight}`, 'ok');
+      im.onerror = () => log('spritesheet FAILED to load', 'err');
+      im.src = url + '?t=' + Date.now();
+    }
+    window.addEventListener('load', async () => {
+      if (typeof AgentPet === 'undefined') { log('AgentPet GLOBAL MISSING', 'err'); return; }
+      log('AgentPet ready, mounted=' + AgentPet.mounted, 'ok');
+      try {
+        await AgentPet.loadManifest('/ryu.json');
+        log('manifest loaded ✓', 'ok');
+      } catch (e) {
+        log('loadManifest err: ' + e.message, 'err');
+      }
+      const cfg = JSON.parse(localStorage.getItem('agent-pet:config') || 'null');
+      log('actions: ' + Object.keys(cfg?.custom?.actions ?? {}).join(', '), 'info');
+    });
+  </script>
+
+  <script src="/dist/agent-pet-widget.iife.js"></script>
+</body>
+</html>

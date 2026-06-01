@@ -1,0 +1,159 @@
+{
+  "id": "ryu",
+  "displayName": "Ryu",
+  "description": "Street Fighter II Ryu — full move set with hadouken projectile.",
+  "accent": "#e74c3c",
+  "spritesheet": "spritesheet.webp",
+  "atlas": {
+    "cols": 8,
+    "rows": 11,
+    "rowsDef": [
+      { "index": 0, "id": "idle", "frames": 6, "fps": 6 },
+      { "index": 1, "id": "walk-right", "frames": 6, "fps": 8 },
+      { "index": 2, "id": "walk-left", "frames": 6, "fps": 8 },
+      { "index": 3, "id": "taunt", "frames": 4, "fps": 6 },
+      { "index": 4, "id": "shoryuken", "frames": 8, "fps": 9 },
+      { "index": 5, "id": "knockdown", "frames": 8, "fps": 7 },
+      { "index": 6, "id": "wait", "frames": 6, "fps": 6 },
+      { "index": 7, "id": "kick", "frames": 7, "fps": 8 },
+      { "index": 8, "id": "hadouken", "frames": 4, "fps": 7 },
+      { "index": 9, "id": "spinkick", "frames": 8, "fps": 12 },
+      { "index": 10, "id": "fireball", "frames": 4, "fps": 12 }
+    ]
+  },
+  "actions": {
+    "idle": { "row": "idle", "loops": 1 },
+    "wait": { "row": "wait", "loops": 1 },
+    "walk-right": { "row": "walk-right", "loops": 2 },
+    "walk-left": { "row": "walk-left", "loops": 2 },
+    "taunt": { "row": "taunt", "loops": 1, "say": "Hadouken!" },
+    "kick": { "row": "kick", "loops": 1 },
+    "spinkick": { "row": "spinkick", "loops": 1 },
+    "shoryuken": {
+      "row": "shoryuken",
+      "loops": 1,
+      "jumpHeight": 110,
+      "say": "Shoryuken!"
+    },
+    "hadouken": {
+      "row": "hadouken",
+      "loops": 1,
+      "say": "Hadouken!",
+      "spawn": [
+        {
+          "atFrame": 3,
+          "row": "fireball",
+          "dx": -800,
+          "dy": -8,
+          "durationMs": 1000,
+          "offsetX": -28,
+          "offsetY": 4,
+          "size": 72,
+          "fps": 14
+        }
+      ]
+    },
+    "knockdown": { "row": "knockdown", "loops": 1 }
+  },
+  "stateMap": {
+    "idle": "idle",
+    "thinking": "hadouken",
+    "building": "kick",
+    "delegating": "walk-right",
+    "leaving": "walk-left",
+    "waiting": "wait",
+    "greeting": "taunt",
+    "success": "shoryuken",
+    "error": "knockdown"
+  },
+  "runtime": "rich",
+  "richActions": {
+    "rich-hadouken": {
+      "durationMs": 900,
+      "say": "Hadouken!!",
+      "tracks": [
+        {
+          "loops": 1,
+          "z": 0,
+          "fps": 7,
+          "frames": [
+            { "band": 8, "idx": 0, "t": 0 },
+            { "band": 8, "idx": 1, "t": 0.25 },
+            { "band": 8, "idx": 2, "t": 0.5, "offsetX": 231 },
+            { "band": 8, "idx": 3, "t": 0.75 }
+          ],
+          "keyframes": [
+            { "t": 0,    "x": 0, "y": 0, "scaleX": 1,    "scaleY": 1,    "alpha": 1 },
+            { "t": 0.4,  "x": 0, "y": 0, "scaleX": 1.15, "scaleY": 0.85, "easing": "ease-out" },
+            { "t": 0.6,  "x": 0, "y": 0, "scaleX": 1.3,  "scaleY": 1.1,  "easing": "ease-out" },
+            { "t": 0.85, "x": 0, "y": 0, "scaleX": 1,    "scaleY": 1,    "easing": "ease-in-out" }
+          ]
+        }
+      ],
+      "spawn": [
+        {
+          "t": 0.62,
+          "type": "projectile",
+          "row": "fireball",
+          "origin": { "x": -32, "y": -2 },
+          "durationMs": 1300,
+          "size": 56,
+          "endSize": 84,
+          "path": {
+            "type": "parabolic",
+            "to": { "x": -1000, "y": 0 },
+            "peakHeight": 70
+          }
+        },
+        {
+          "t": 0.62,
+          "type": "particles",
+          "origin": { "x": -32, "y": -2 },
+          "emitter": {
+            "count": 14,
+            "lifetimeMs": 600,
+            "velocity": { "x": -120, "y": -20, "spreadDeg": 60 },
+            "gravity": 220,
+            "sizeStart": 6,
+            "sizeEnd": 1,
+            "alphaStart": 0.95,
+            "alphaEnd": 0,
+            "color": "#9fdfff"
+          }
+        }
+      ]
+    },
+    "boomerang-kick": {
+      "durationMs": 1100,
+      "say": "Tatsumaki!",
+      "tracks": [
+        {
+          "row": "spinkick",
+          "loops": 2,
+          "z": 0,
+          "keyframes": [
+            { "t": 0,   "x": 0,   "y": 0,  "rotation": 0 },
+            { "t": 0.5, "x": 0,   "y": -40, "rotation": 360 },
+            { "t": 1,   "x": 0,   "y": 0,  "rotation": 720, "easing": "ease-in" }
+          ]
+        }
+      ],
+      "spawn": [
+        {
+          "t": 0.15,
+          "type": "projectile",
+          "row": "fireball",
+          "origin": { "x": 0, "y": -20 },
+          "durationMs": 1000,
+          "size": 40,
+          "endSize": 36,
+          "path": {
+            "type": "boomerang",
+            "to": { "x": -500, "y": -40 },
+            "arcHeight": 90
+          }
+        }
+      ]
+    }
+  }
+}
