@@ -1,11 +1,19 @@
+use serde_json::json;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::Emitter;
 use tauri::Manager;
 
 pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show/Hide", true, None::<&str>)?;
+    let start_rdan = MenuItem::with_id(app, "agent_start_rdan", "Start r.dan", true, None::<&str>)?;
+    let stop_agent = MenuItem::with_id(app, "agent_stop", "Stop agent", true, None::<&str>)?;
+    let agent_status = MenuItem::with_id(app, "agent_status", "Agent status", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[&show, &start_rdan, &stop_agent, &agent_status, &quit],
+    )?;
     TrayIconBuilder::new()
         .menu(&menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -24,8 +32,47 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
                     }
                 }
             }
+            "agent_start_rdan" => {
+                let state = app.state::<crate::server::AppState>();
+                match state.agent.start("rdan") {
+                    Ok(_) => {
+                        let _ = app.emit("pet:state", json!({ "state": "building" }));
+                        emit_say(app, "r.dan started");
+                    }
+                    Err(err) => emit_say(app, agent_error_message("r.dan", err)),
+                }
+            }
+            "agent_stop" => {
+                let state = app.state::<crate::server::AppState>();
+                match state.agent.stop() {
+                    Ok(_) => {
+                        let _ = app.emit("pet:state", json!({ "state": "idle" }));
+                        emit_say(app, "agent stopped");
+                    }
+                    Err(err) => emit_say(app, agent_error_message("agent", err)),
+                }
+            }
+            "agent_status" => {
+                let state = app.state::<crate::server::AppState>();
+                let status = state.agent.status();
+                emit_say(app, status.message);
+            }
             _ => {}
         })
         .build(app)?;
     Ok(())
+}
+
+fn emit_say(app: &tauri::AppHandle, text: impl Into<String>) {
+    let _ = app.emit("pet:say", json!({ "text": text.into() }));
+}
+
+fn agent_error_message(tool: &str, err: crate::agent::AgentError) -> String {
+    match err {
+        crate::agent::AgentError::UnknownTool => format!("{tool} is not allowlisted"),
+        crate::agent::AgentError::AlreadyRunning => "agent is already running".to_string(),
+        crate::agent::AgentError::NotRunning => "agent is not running".to_string(),
+        crate::agent::AgentError::MissingInstall => format!("{tool} install was not found"),
+        crate::agent::AgentError::SpawnFailed => format!("{tool} failed to start"),
+    }
 }

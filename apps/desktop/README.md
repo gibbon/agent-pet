@@ -32,7 +32,7 @@ curl "127.0.0.1:$PORT/actions" -H 'x-agent-pet:1' -H "authorization: Bearer $TOK
 
 ## Agent runner
 
-The desktop app also exposes an experimental allowlisted agent runner. It does not execute arbitrary shell commands. The first supported tool is `rdan`, resolved from `AGENT_PET_RDAN_DIR`, `../r.dan`, `../../r.dan`, or `~/projects/r.dan`.
+The desktop app also exposes an experimental allowlisted agent runner. It does not execute arbitrary shell commands. The first supported tool is `rdan`, resolved from `AGENT_PET_RDAN_DIR`, `../r.dan`, `../../r.dan`, or `~/projects/r.dan`. You can start/stop it from the tray menu, or drive it over the localhost API:
 
 ```bash
 curl "127.0.0.1:$PORT/agent/tools" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN"
