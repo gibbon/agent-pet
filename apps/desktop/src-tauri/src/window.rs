@@ -27,7 +27,7 @@ pub fn restore_position(win: &WebviewWindow) -> Option<(i32, i32)> {
     Some((x, y + h))
 }
 
-pub fn persist_position(win: &WebviewWindow) {
+pub fn persist_position(win: &tauri::Window) {
     if let Ok(pos) = win.outer_position() {
         let raw = serde_json::to_string(&[pos.x, pos.y]).unwrap_or_else(|_| "[0,0]".to_string());
         let _ = std::fs::write(crate::portfile::position_file_path(), raw);

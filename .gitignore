@@ -3,6 +3,7 @@ dist/
 apps/desktop/web-dist/
 apps/desktop/web/public/vendor/
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
 # Cloudflare Pages publish dir — only the source files (_headers, index.html)
 # are tracked. Build artifacts get copied in by `pnpm build:pages` on deploy.
 public/SRI.json

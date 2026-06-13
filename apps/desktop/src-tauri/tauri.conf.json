@@ -30,6 +30,6 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "icon": ["../../ryu.png"]
+    "icon": ["../../../ryu.png"]
   }
 }

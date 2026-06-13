@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-report-registry"
+description = "Enables the report_registry command without any pre-configured scope."
+commands.allow = ["report_registry"]
+
+[[permission]]
+identifier = "deny-report-registry"
+description = "Denies the report_registry command without any pre-configured scope."
+commands.deny = ["report_registry"]
