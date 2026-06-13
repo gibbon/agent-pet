@@ -909,6 +909,7 @@
 <!-- Shared starter presets (window.STARTER_PRESETS, window.resolvePresetManifest)
      also consumed by /pet-tester.html so the two pages stay in sync. -->
 <script src="/presets.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -1798,6 +1799,12 @@ function populateRipPicker(activeRip) {
     }
     pushUndo();
     await loadSourceRip(rip);
+    // Update manifest metadata to match the new rip
+    state.manifest.id = rip.slug;
+    state.manifest.displayName = rip.name;
+    state.manifest.description = `${rip.name} — edited in rich-editor`;
+    // Keep existing accent or use a default
+    if (!state.manifest.accent) state.manifest.accent = '#3498db';
     if (clear) {
       state.manifest.richActions = {
         'untitled': newDefaultAction(),
@@ -3595,7 +3602,6 @@ async function runCodexBake(included, fields) {
   const petId = String(fields.id || 'pet').trim().replace(/\s+/g, '-').toLowerCase() || 'pet';
   const blob = await new Promise((resolve, reject) =>
     canvas.toBlob((b) => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png'));
-  downloadBlob(blob, `${petId}.png`);
 
   // Build the codex-pets manifest. spritesheet uses a relative path so
   // the JSON works wherever it's hosted alongside the PNG.
@@ -3629,8 +3635,27 @@ async function runCodexBake(included, fields) {
     })),
   };
   const json = JSON.stringify(manifest, null, 2);
-  downloadBlob(new Blob([json], { type: 'application/json' }), `${petId}.json`);
-  toast(`baked ${petId} · ${cols}×${rows} cells (${cellW}×${cellH}px each)`);
+
+  // Create zip containing both files (fallback to separate downloads if JSZip unavailable)
+  if (typeof JSZip !== 'undefined') {
+    try {
+      const zip = new JSZip();
+      zip.file(`${petId}.png`, blob);
+      zip.file(`${petId}.json`, json);
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(zipBlob, `${petId}.zip`);
+      toast(`baked ${petId} · ${cols}×${rows} cells (${cellW}×${cellH}px each) → ${petId}.zip`);
+    } catch (e) {
+      console.warn('JSZip failed, falling back to separate downloads:', e);
+      downloadBlob(blob, `${petId}.png`);
+      downloadBlob(new Blob([json], { type: 'application/json' }), `${petId}.json`);
+      toast(`baked ${petId} · ${cols}×${rows} cells (${cellW}×${cellH}px each) → 2 files`);
+    }
+  } else {
+    downloadBlob(blob, `${petId}.png`);
+    downloadBlob(new Blob([json], { type: 'application/json' }), `${petId}.json`);
+    toast(`baked ${petId} · ${cols}×${rows} cells (${cellW}×${cellH}px each) → 2 files`);
+  }
 }
 
 // ─── Open codex pet ────────────────────────────────────────────────────
@@ -6607,14 +6632,26 @@ function addTrack() {
   const a = state.manifest.richActions[state.currentAction];
   if (!a) return;
   pushUndo();
-  const rowId = state.manifest.atlas.rowsDef[0]?.id ?? 'idle';
-  a.tracks.push({
-    row: rowId, loops: 1, z: a.tracks.length,
-    keyframes: [
-      { t: 0, x: 0, y: 0, scaleX: 1, scaleY: 1, alpha: 1 },
-      { t: 1, x: 0, y: 0, scaleX: 1, scaleY: 1, alpha: 1 },
-    ],
-  });
+  // Prefer source-frame mode like newDefaultAction — check for available sprites first
+  const firstSprite = sourceSprites.byBand?.values()?.next?.()?.value?.[0];
+  const track = firstSprite
+    ? {
+        loops: 1, z: a.tracks.length, fps: 6,
+        frames: [{ band: firstSprite.band, idx: firstSprite.idx }],
+        keyframes: [
+          { t: 0, x: 0, y: 0, scaleX: 1, scaleY: 1, alpha: 1 },
+          { t: 1, x: 0, y: 0, scaleX: 1, scaleY: 1, alpha: 1 },
+        ],
+      }
+    : {
+        row: state.manifest.atlas.rowsDef[0]?.id ?? 'idle',
+        loops: 1, z: a.tracks.length,
+        keyframes: [
+          { t: 0, x: 0, y: 0, scaleX: 1, scaleY: 1, alpha: 1 },
+          { t: 1, x: 0, y: 0, scaleX: 1, scaleY: 1, alpha: 1 },
+        ],
+      };
+  a.tracks.push(track);
   state.currentTrack = a.tracks.length - 1;
   render();
 }
