@@ -13,7 +13,7 @@
 **Conventions:**
 - Tauri **v2** APIs throughout (`tauri = "2"`, capabilities in `apps/desktop/src-tauri/capabilities/`, CSP in `tauri.conf.json` → `app.security.csp`, events via `AppHandle::emit` / JS `@tauri-apps/api/event`).
 - All Rust commands and HTTP handlers live under `apps/desktop/src-tauri/src/`. Run Rust tests with `cargo test` from `apps/desktop/src-tauri/`.
-- Bridge JS is plain ES modules bundled by vite into `apps/desktop/web/`; tested with the repo's existing `vitest` (jsdom) from the repo root.
+- Bridge JS is plain ES modules bundled by vite into `apps/desktop/web/`; tested with the repo's existing `vitest` from the repo root. These are **pure-node** unit tests (the repo has no jsdom configured and the helpers don't touch the DOM). If a test ever needs `document`/`ResizeObserver`, add a `// @vitest-environment jsdom` docblock to that file and add `jsdom` to devDependencies — otherwise don't.
 - Commit after every task. Use conventional-commit prefixes (`feat(desktop):`, `test(desktop):`, `chore(desktop):`).
 
 ---
@@ -24,7 +24,8 @@
 apps/desktop/
   src-tauri/
     src/
-      main.rs            # entrypoint: build app, window, tray, spawn server
+      main.rs            # thin bin: calls agent_pet_desktop::run()
+      lib.rs             # run(): build app, window, tray, spawn server; declares pub mod's
       window.rs          # create/configure the transparent bounding-box window
       commands.rs        # IPC commands: report_bounds, start_drag, quit, report_registry
       server/
@@ -59,7 +60,7 @@ Each Rust module has one responsibility; `server/` is split so auth/middleware, 
 ## Task 0: Scaffold the Tauri app + monorepo build wiring
 
 **Files:**
-- Create: `apps/desktop/src-tauri/Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/build.rs`, `apps/desktop/src-tauri/src/main.rs`
+- Create: `apps/desktop/src-tauri/Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/build.rs`, `apps/desktop/src-tauri/src/main.rs`, `apps/desktop/src-tauri/src/lib.rs`
 - Create: `apps/desktop/web/index.html`, `apps/desktop/web/launch-config.js`, `apps/desktop/vite.desktop.config.ts`, `apps/desktop/package.json`
 - Create: `apps/desktop/scripts/copy-bundles.mjs`
 - Modify: root `pnpm-workspace.yaml` (create if absent) to include `apps/*`
@@ -152,15 +153,56 @@ export default defineConfig({
 
 - [ ] **Step 6: Write `Cargo.toml`, `build.rs`, minimal `main.rs`, and `tauri.conf.json`**
 
-`Cargo.toml` deps: `tauri = { version = "2", features = ["tray-icon"] }`, `tauri-plugin-store = "2"`, `axum = "0.7"`, `tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }`, `serde = { version = "1", features = ["derive"] }`, `serde_json = "1"`, `constant_time_eq = "0.3"`, `rand = "0.8"`, `dirs = "5"`. `build.rs`: `fn main() { tauri_build::build(); }`.
+`Cargo.toml` — **declare the package** so `cargo test` and `-p` work:
+```toml
+[package]
+name = "agent-pet-desktop"
+version = "0.1.0"
+edition = "2021"
 
-`main.rs` (minimal — just open the page; window/server added in later tasks):
+[lib]
+name = "agent_pet_desktop"
+path = "src/lib.rs"   # so unit tests in modules are reachable; main.rs is a thin bin
+
+[build-dependencies]
+tauri-build = { version = "2" }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-store = "2"
+tauri-plugin-single-instance = "2"
+axum = "0.7"
+tower-http = { version = "0.5", features = ["limit"] }
+http = "1"                 # must match axum 0.7's re-exported http major (1.x)
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+constant_time_eq = "0.3"
+rand = "0.8"
+url = "2"
+dirs = "5"
+
+[target.'cfg(windows)'.dependencies]
+whoami = "1"               # resolve the literal username for the icacls fallback
+
+[dev-dependencies]
+tempfile = "3"
+```
+Tests run from `apps/desktop/src-tauri/` with plain `cargo test` (no `-p` needed); where the plan writes `cargo test -p agent-pet <module>` below, read it as `cargo test <module>`. `build.rs`: `fn main() { tauri_build::build(); }`. Split `main.rs` into a thin binary that calls `agent_pet_desktop::run()`, with all modules under `src/lib.rs` (`pub mod ...`) so `#[cfg(test)]` modules compile.
+
+`src/lib.rs` (minimal — just open the page; window/server/modules added in later tasks) and a thin `src/main.rs`. Both must exist from Task 0 because `Cargo.toml` declares `[lib] path = "src/lib.rs"`:
 ```rust
-fn main() {
+// src/lib.rs
+pub fn run() {
     tauri::Builder::default()
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+```
+```rust
+// src/main.rs
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+fn main() { agent_pet_desktop::run() }
 ```
 
 `tauri.conf.json` (key fields — window hardening + CSP land in Tasks 1 & 9; start permissive-enough to load):
@@ -283,28 +325,34 @@ export function withMargin(r, m) {
 Run: `pnpm vitest run apps/desktop/web/bounds.test.ts`
 Expected: PASS (8 assertions).
 
-- [ ] **Step 5: Implement the `report_bounds` command (Rust) with input clamping**
+- [ ] **Step 5: Implement the `report_bounds` command (Rust) — resize-and-pin to a STORED anchor (no live-origin feedback loop)**
 
-`commands.rs` — see spec §7.6 (clamp finite, non-negative, within virtual screen, sane max):
+The drift trap (called out in review): if `report_bounds` reads the window's *current* origin and adds the pet's local offset each call, then because the window is repositioned every call, the origin it reads is last call's moved value → the window walks across the screen, and shrinking the window also moves the pet within the viewport, which re-fires the observer. Break the loop two ways: (a) **pin the pet to the window's bottom-left in CSS** (Step 6) so the content origin is independent of window size; (b) compute position from a **stored screen anchor that changes only on user drag**, never from the live origin.
+
+The bridge reports only the union's **width and height** (the pet is pinned bottom-left, so the union's local origin is always ~0,0 and the box grows up/right for bubbles). Rust keeps the pet's bottom-left screen point fixed:
+
+`commands.rs`:
 ```rust
-use tauri::{command, AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
+use tauri::{command, Manager, PhysicalPosition, PhysicalSize};
+use crate::state::AppState;
 
 const MAX_DIM: u32 = 4096;
 
 #[command]
-pub fn report_bounds(app: AppHandle, x: f64, y: f64, w: f64, h: f64) {
-    if ![x, y, w, h].iter().all(|v| v.is_finite()) { return; }
+pub fn report_bounds(app: tauri::AppHandle, state: tauri::State<AppState>, w: f64, h: f64) {
+    if !w.is_finite() || !h.is_finite() { return; }
     let Some(win) = app.get_webview_window("main") else { return; };
-    // Current window origin on screen; rect is window-local, so add origin.
-    let origin = win.outer_position().unwrap_or(PhysicalPosition::new(0, 0));
     let nw = (w.max(1.0) as u32).min(MAX_DIM);
     let nh = (h.max(1.0) as u32).min(MAX_DIM);
-    let nx = origin.x + x.max(0.0) as i32;
-    let ny = origin.y + y.max(0.0) as i32;
+    // anchor = the screen point where the pet's bottom-left must stay (stored;
+    // updated only on drag-end / launch — never read from the live window).
+    let (ax, ay_bottom) = state.anchor();
     let _ = win.set_size(PhysicalSize::new(nw, nh));
-    let _ = win.set_position(PhysicalPosition::new(nx, ny));
+    // top-left = anchor_x , anchor_bottom - height  → window grows upward, pet stays put.
+    let _ = win.set_position(PhysicalPosition::new(ax, ay_bottom - nh as i32));
 }
 ```
+`AppState` gains `anchor() -> (i32,i32)` and `set_anchor(x, y_bottom)` over a `Mutex<(i32,i32)>` (added with the rest of `AppState` in Task 4; for this task, stub a module-level `OnceLock<Mutex<(i32,i32)>>` initialised to the launch position so Task 1 stands alone, then fold it into `AppState` in Task 4). The anchor is set at launch (default bottom-right of the work area) and updated on drag-end in Task 8.
 
 - [ ] **Step 6: Implement `window.rs` to apply the transparent bounding-box flags at startup**
 ```rust
@@ -317,25 +365,29 @@ pub fn harden(win: &WebviewWindow) {
     let _ = win.set_resizable(false);
 }
 ```
-In `tauri.conf.json` set the window `"transparent": true`, `"decorations": false`, `"alwaysOnTop": true`, `"skipTaskbar": true`, `"shadow": false`. Wire `main.rs` to call `harden` in `.setup(...)` and register the command:
+In `tauri.conf.json` set the window `"transparent": true`, `"decorations": false`, `"alwaysOnTop": true`, `"skipTaskbar": true`, `"shadow": false`. The builder lives in `lib.rs::run()` (Task 0 split; `src/main.rs` is just `fn main() { agent_pet_desktop::run() }`). Call `harden` in `.setup(...)` and register the command:
 ```rust
-fn main() {
+// src/lib.rs
+pub mod commands;
+pub mod window;
+// ...other pub mod declarations added in later tasks...
+
+pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![crate::commands::report_bounds])
+        .invoke_handler(tauri::generate_handler![commands::report_bounds])
         .setup(|app| {
             let win = app.get_webview_window("main").unwrap();
-            crate::window::harden(&win);
+            window::harden(&win);
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 ```
-(Add `mod commands; mod window;` to `main.rs`.)
 
 - [ ] **Step 7: Wire the bridge to report bounds on layout transitions**
 
-In `web/bridge.js`, after the widget mounts, observe the pet element and report on transitions only (spec §4 — `ResizeObserver` + bubble show/hook, **not** per-frame), debounced via `changedBeyond`:
+In `web/bridge.js`, after the widget mounts, observe the pet element and report on transitions only (spec §4 — `ResizeObserver` + bubble show/hook, **not** per-frame), debounced via `changedBeyond`. The bridge sends only **width/height** (Rust pins the bottom-left via the stored anchor, Step 5):
 ```js
 import { unionRect, changedBeyond, withMargin } from './bounds.js';
 import { invoke } from '@tauri-apps/api/core';
@@ -343,23 +395,16 @@ import { invoke } from '@tauri-apps/api/core';
 const MARGIN = 8, THRESHOLD = 2;
 let last = null;
 
-function measure(root) {
-  const host = root.querySelector('#pet-root');
-  const petEl = host?.firstElementChild; // widget host element
-  if (!petEl) return null;
-  const r = petEl.getBoundingClientRect();
-  return { x: r.left, y: r.top, w: r.width, h: r.height };
-}
-
 export function reportNow(petRect, bubbleRect) {
   if (!petRect) return;
   const u = withMargin(unionRect(petRect, bubbleRect), MARGIN);
   if (!changedBeyond(last, u, THRESHOLD)) return;
   last = u;
-  invoke('report_bounds', { x: u.x, y: u.y, w: u.w, h: u.h });
+  invoke('report_bounds', { w: u.w, h: u.h }); // size only; position is anchor-pinned in Rust
 }
 // A ResizeObserver on the pet host + the bubble-visibility hook (Task 5) call reportNow().
 ```
+**Pin the pet bottom-left:** the host page anchors the mount container to the window's bottom-left and the desktop launch disables the widget's own drag/position persistence (OS drag replaces it, Task 8), so the pet's on-screen position is independent of window size — the whole reason Step 5 can resize without moving the pet. Exact CSS/measurement is tuned during the Step 8 verify; if the widget's bubble renders in a direction that clips, adjust the anchor corner there.
 
 - [ ] **Step 8: Manual verify the resize loop on Linux/WSL**
 
@@ -448,7 +493,7 @@ pub fn report_registry(state: tauri::State<AppState>, actions: Vec<String>) {
 
 - [ ] **Step 7: Wire the bridge to mount the widget and report the registry**
 
-In `bridge.js`:
+In `bridge.js`. **Important (verified against `src/widget/mount.ts`): a bare `mount()` with a glyph config does not register rich actions, and `mount()`'s config gate ignores `richActions`/`runtime`.** So the registry must be reported *after config is fully applied*, and rich/manifest pets must come through `loadManifest` (which triggers the rich-runtime lazy import and applies `actions`/`atlas`/`imageUrl`). The default pet is a glyph pet → its registry is just the 9 states; a manifest pet awaits `loadManifest` before the pet can actually `play()` its actions:
 ```js
 import { launchConfig } from './launch-config.js';
 import { actionRegistry } from './registry.js';
@@ -456,8 +501,18 @@ import { invoke } from '@tauri-apps/api/core';
 
 // window.AgentPet is provided by the vendored IIFE.
 AgentPet.mount({ target: document.getElementById('pet-root'), ...launchConfig });
-invoke('report_registry', { actions: actionRegistry(launchConfig) });
+
+async function applyConfigAndReport() {
+  // If the launch config carries a manifest (custom/rich actions), load it so
+  // the actions are actually playable — bare mount() would 200 then no-op.
+  if (launchConfig.manifest) {
+    await AgentPet.loadManifest(launchConfig.manifest); // rich runtime lazy-imports here
+  }
+  invoke('report_registry', { actions: actionRegistry(launchConfig.manifest ?? launchConfig) });
+}
+applyConfigAndReport();
 ```
+For the MVP default (glyph pet, no manifest) only the 9 states are reported — correct, since it has no custom actions.
 
 - [ ] **Step 8: Manual verify** the pet renders and (later, once the server exists) `/actions` reflects this set. For now, `cargo tauri dev` shows the pet mounted. 
 
@@ -542,7 +597,7 @@ pub fn read_port_file(path: &Path) -> std::io::Result<(u16, String)> {
     Ok((port, token))
 }
 ```
-**Windows ACL note:** implement `restrict_acl_owner_only` using the `windows` crate (`SetNamedSecurityInfo` granting only the current user SID) or shell out to `icacls <path> /inheritance:r /grant:r "%USERNAME%:F"`. This is the real permission control on the shipping platform — `0600` is a no-op there (spec §7.9). Cover with a `#[cfg(windows)]` manual check in CI smoke (Task 11), since unit-testing ACLs is environment-bound.
+**Windows ACL note:** implement `restrict_acl_owner_only` using the `windows` crate (`SetNamedSecurityInfo` granting only the current user SID) or shell out to `icacls`. If shelling out, resolve the username with the `whoami` crate (`whoami::username()`) and pass the **literal** name — `%USERNAME%` does **not** expand under Rust's `Command` (it isn't run through cmd): `Command::new("icacls").args([path, "/inheritance:r", "/grant:r", &format!("{user}:F")])`. This is the real permission control on the shipping platform — `0600` is a no-op there (spec §7.9). Cover with a `#[cfg(windows)]` manual check in CI smoke (Task 11), since unit-testing ACLs is environment-bound.
 
 - [ ] **Step 4: Run — expect PASS** (`cargo test -p agent-pet portfile`).
 
@@ -555,7 +610,9 @@ pub fn action_name_ok(s: &str) -> bool {
 }
 ```
 
-- [ ] **Step 6: Implement `server/mod.rs`** — bind `127.0.0.1:0` (OS picks a free port → no in-use race), get the bound port, write the port file, serve `/health`. Single-instance: try to bind; if a prior instance's port file points at a live `/health`, raise that window and exit (the raise is best-effort; the lock is the successful bind of a single-instance marker — for MVP, a bind on a fixed lock port or a named lock file is acceptable). Keep `/health` unauthenticated and **versionless** (spec §5):
+- [ ] **Step 6a: Wire single-instance via the official plugin** (spec §5 — "a second launch raises the existing window and exits 0"). In the Tauri builder, register `tauri_plugin_single_instance::init(|app, _argv, _cwd| { if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.set_focus(); } })` **first**, before other plugins. The plugin guarantees only one process owns the app; the callback fires in the running instance to raise its window. No hand-rolled lock port.
+
+- [ ] **Step 6b: Implement `server/mod.rs`** — bind `127.0.0.1:0` (OS picks a free port → no in-use race), get the bound port, write the port file, serve `/health`. Keep `/health` unauthenticated and **versionless** (spec §5):
 ```rust
 use axum::{routing::get, Router, Json};
 use std::net::SocketAddr;
@@ -648,11 +705,15 @@ impl AppState {
 ```
 
 - [ ] **Step 4: Implement `authorize` in `auth.rs`** — constant-time compare (`constant_time_eq`), header + provenance checks per spec §7.1:
+**Verify the webview origin per platform first (do not guess):** the Tauri v2 webview origin differs by OS — `https://tauri.localhost` on **Windows** (the shipping target), `tauri://localhost` on Linux/macOS. In `cargo tauri dev` on each target, log `headers.get("origin")` on an IPC-triggered request and use the observed value. Key the CSP `connect-src` (Task 9) off the same constant. Define it `#[cfg(windows)]`/`#[cfg(not(windows))]`:
 ```rust
 use constant_time_eq::constant_time_eq;
 use http::HeaderMap;
 
-pub const OWN_ORIGIN: &str = "tauri://localhost"; // adjust to actual webview origin
+#[cfg(windows)]
+pub const OWN_ORIGIN: &str = "https://tauri.localhost";
+#[cfg(not(windows))]
+pub const OWN_ORIGIN: &str = "tauri://localhost";
 
 pub fn authorize(h: &HeaderMap, token: &str) -> Result<(), ()> {
     if h.get("x-agent-pet").and_then(|v| v.to_str().ok()) != Some("1") { return Err(()); }
@@ -792,7 +853,21 @@ git commit -m "feat(desktop): POST /say with server-side link re-validation"
 
 **Files:** Create `apps/desktop/src-tauri/src/tray.rs`; modify `main.rs`, `commands.rs`, `bridge.js`
 
-- [ ] **Step 1: Implement the tray** (`tray.rs`) with menu items Show/Hide and Quit (spec §3) — Quit removes the port file and exits; Show/Hide toggle window visibility. Register in setup.
+- [ ] **Step 1: Implement the tray** (`tray.rs`) with menu items Show/Hide and Quit (spec §3) — Quit removes the port file and exits; Show/Hide toggle window visibility. Register in setup. Use the Tauri v2 import paths (highest native-drift risk — verify against `cargo tauri` for the installed minor):
+```rust
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
+// in setup:
+//   let show = MenuItem::with_id(app, "show", "Show/Hide", true, None::<&str>)?;
+//   let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+//   let menu = Menu::with_items(app, &[&show, &quit])?;
+//   TrayIconBuilder::new().menu(&menu).on_menu_event(|app, e| match e.id().as_ref() {
+//       "quit" => { /* remove port file */ app.exit(0); }
+//       "show" => { /* toggle main window visibility */ }
+//       _ => {}
+//   }).build(app)?;
+```
+(`tray-icon` feature is already enabled in Task 0; the `menu` module is available by default in v2.)
 
 - [ ] **Step 2: Implement `start_drag` and `quit` commands** in `commands.rs` (`win.start_dragging()`, `app.exit(0)`); register them. In `bridge.js`, attach `start_drag` to pointer-down on the pet host so dragging moves the OS window (spec §4).
 
@@ -818,7 +893,7 @@ git commit -m "feat(desktop): tray (show/hide/quit), drag-to-move, position pers
 
 - [ ] **Step 2: Write `capabilities/default.json`** granting only `core:event:default`, `core:window:allow-*` needed for drag/visibility, and the four custom commands — nothing for `shell`/`fs`/`http` (spec §7.6).
 
-- [ ] **Step 3: Add image-url validation** (spec §7.8) — if launch config sets `imageUrl`, validate scheme in Rust at load / or reject in the bridge before `configure`: `https:` or the bundled `./vendor/...` path only; reject `file:`/`data:`/`http:`. Add a small Rust test for the scheme check if validation lives in Rust.
+- [ ] **Step 3: Add image-url validation in Rust** (spec §7.8 — "launch-config only, validated in Rust at load"; keep the check on the trusted side). At config load, validate any `imageUrl` scheme: allow `https:` or the bundled `./vendor/...` relative path only; reject `file:`/`data:`/`http:`. Add a unit test for the scheme predicate (`image_url_ok`).
 
 - [ ] **Step 4: Manual verify** — with CSP on, the pet still mounts, IPC commands work, a manifest pet's rich runtime loads from the **local** vendor path (no network script), and an off-allowlist `imageUrl` is rejected. Confirm devtools shows no CSP violations in normal use.
 
