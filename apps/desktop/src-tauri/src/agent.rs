@@ -1,6 +1,9 @@
+use std::collections::VecDeque;
+use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
@@ -13,6 +16,7 @@ pub struct AgentSupervisor {
 struct AgentRuntime {
     active: Option<ActiveAgent>,
     last_message: String,
+    log: VecDeque<String>,
 }
 
 struct ActiveAgent {
@@ -51,6 +55,12 @@ pub struct AgentStatus {
     #[serde(rename = "startedAt")]
     pub started_at: Option<u64>,
     pub message: String,
+    pub log: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct AgentLog {
+    pub lines: Vec<String>,
 }
 
 impl AgentSupervisor {
@@ -59,6 +69,7 @@ impl AgentSupervisor {
             inner: Arc::new(Mutex::new(AgentRuntime {
                 active: None,
                 last_message: "idle".to_string(),
+                log: VecDeque::new(),
             })),
         }
     }
@@ -83,6 +94,7 @@ impl AgentSupervisor {
             tool: inner.active.as_ref().map(|a| a.tool.id()),
             started_at: inner.active.as_ref().map(|a| a.started_at),
             message: inner.last_message.clone(),
+            log: log_tail(&inner, 20),
         }
     }
 
@@ -93,10 +105,18 @@ impl AgentSupervisor {
         if inner.active.is_some() {
             return Err(AgentError::AlreadyRunning);
         }
+        inner.log.clear();
 
-        let child = match tool {
+        let mut child = match tool {
             AgentTool::Rdan => spawn_rdan()?,
         };
+        push_log(&mut inner, format!("starting {}", tool.id()));
+        if let Some(stdout) = child.stdout.take() {
+            spawn_log_reader(self.inner.clone(), "stdout", stdout);
+        }
+        if let Some(stderr) = child.stderr.take() {
+            spawn_log_reader(self.inner.clone(), "stderr", stderr);
+        }
         inner.last_message = format!("{} started", tool.id());
         inner.active = Some(ActiveAgent {
             tool,
@@ -113,8 +133,17 @@ impl AgentSupervisor {
         };
         let _ = active.child.kill();
         let _ = active.child.wait();
-        inner.last_message = format!("{} stopped", active.tool.id());
+        let message = format!("{} stopped", active.tool.id());
+        inner.last_message = message.clone();
+        push_log(&mut inner, message);
         Ok(status_from_runtime(&inner))
+    }
+
+    pub fn log(&self, limit: usize) -> AgentLog {
+        let inner = self.inner.lock().unwrap();
+        AgentLog {
+            lines: log_tail(&inner, limit.clamp(1, 200)),
+        }
     }
 }
 
@@ -145,6 +174,7 @@ fn status_from_runtime(inner: &AgentRuntime) -> AgentStatus {
         tool: inner.active.as_ref().map(|a| a.tool.id()),
         started_at: inner.active.as_ref().map(|a| a.started_at),
         message: inner.last_message.clone(),
+        log: log_tail(inner, 20),
     }
 }
 
@@ -156,15 +186,59 @@ fn reap_finished(inner: &mut AgentRuntime) {
         Ok(Some(status)) => {
             let tool = active.tool;
             inner.active = None;
-            inner.last_message = format!("{} exited with {status}", tool.id());
+            let message = format!("{} exited with {status}", tool.id());
+            inner.last_message = message.clone();
+            push_log(inner, message);
         }
         Ok(None) => {}
         Err(err) => {
             let tool = active.tool;
             inner.active = None;
-            inner.last_message = format!("{} status check failed: {err}", tool.id());
+            let message = format!("{} status check failed: {err}", tool.id());
+            inner.last_message = message.clone();
+            push_log(inner, message);
         }
     }
+}
+
+fn spawn_log_reader<R>(inner: Arc<Mutex<AgentRuntime>>, stream: &'static str, reader: R)
+where
+    R: Read + Send + 'static,
+{
+    thread::spawn(move || {
+        let reader = BufReader::new(reader);
+        for line in reader.lines() {
+            let Ok(line) = line else {
+                break;
+            };
+            let clean = sanitize_log_line(&line);
+            if clean.is_empty() {
+                continue;
+            }
+            let mut inner = inner.lock().unwrap();
+            push_log(&mut inner, format!("{stream}: {clean}"));
+        }
+    });
+}
+
+fn push_log(inner: &mut AgentRuntime, line: String) {
+    const MAX_LINES: usize = 200;
+    inner.log.push_back(line);
+    while inner.log.len() > MAX_LINES {
+        inner.log.pop_front();
+    }
+}
+
+fn log_tail(inner: &AgentRuntime, limit: usize) -> Vec<String> {
+    let start = inner.log.len().saturating_sub(limit);
+    inner.log.iter().skip(start).cloned().collect()
+}
+
+fn sanitize_log_line(line: &str) -> String {
+    line.chars()
+        .filter(|c| *c == '\t' || !c.is_control())
+        .take(500)
+        .collect()
 }
 
 fn spawn_rdan() -> Result<Child, AgentError> {
@@ -182,8 +256,8 @@ fn spawn_rdan() -> Result<Child, AgentError> {
             "3002",
         ])
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     cmd.spawn().map_err(|_| AgentError::SpawnFailed)
 }
 
@@ -245,5 +319,12 @@ mod tests {
         let status = sup.status();
         assert!(!status.running);
         assert_eq!(status.tool, None);
+    }
+
+    #[test]
+    fn sanitizes_log_lines() {
+        assert_eq!(sanitize_log_line("ok\u{0000}\u{001b}[31m"), "ok[31m");
+        assert_eq!("x".repeat(600).len(), 600);
+        assert_eq!(sanitize_log_line(&"x".repeat(600)).len(), 500);
     }
 }

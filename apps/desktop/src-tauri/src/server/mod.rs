@@ -19,6 +19,7 @@ pub async fn serve(state: AppState) {
         .route("/actions", get(handlers::actions))
         .route("/agent/tools", get(handlers::agent_tools))
         .route("/agent/status", get(handlers::agent_status))
+        .route("/agent/log", get(handlers::agent_log))
         .route("/agent/start", post(handlers::agent_start))
         .route("/agent/stop", post(handlers::agent_stop))
         .with_state(state.clone())

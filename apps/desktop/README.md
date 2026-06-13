@@ -37,6 +37,7 @@ The desktop app also exposes an experimental allowlisted agent runner. It does n
 ```bash
 curl "127.0.0.1:$PORT/agent/tools" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN"
 curl "127.0.0.1:$PORT/agent/status" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN"
+curl "127.0.0.1:$PORT/agent/log" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN"
 curl -X POST "127.0.0.1:$PORT/agent/start" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"tool":"rdan"}'
 curl -X POST "127.0.0.1:$PORT/agent/stop" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN"
 ```

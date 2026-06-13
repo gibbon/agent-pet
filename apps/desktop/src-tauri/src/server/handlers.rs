@@ -144,6 +144,10 @@ pub async fn agent_status(State(app_state): State<AppState>) -> Json<serde_json:
     Json(json!(app_state.agent.status()))
 }
 
+pub async fn agent_log(State(app_state): State<AppState>) -> Json<serde_json::Value> {
+    Json(json!(app_state.agent.log(100)))
+}
+
 pub async fn agent_start(
     State(app_state): State<AppState>,
     Json(payload): Json<AgentStartPayload>,
