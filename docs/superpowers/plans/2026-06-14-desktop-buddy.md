@@ -332,27 +332,32 @@ The drift trap (called out in review): if `report_bounds` reads the window's *cu
 The bridge reports only the union's **width and height** (the pet is pinned bottom-left, so the union's local origin is always ~0,0 and the box grows up/right for bubbles). Rust keeps the pet's bottom-left screen point fixed:
 
 `commands.rs`:
+For Task 1 the command uses a **module-level anchor** so it stands alone (no `AppState` yet); Task 4 migrates the anchor into `AppState` and changes the signature to take `tauri::State<AppState>`:
 ```rust
 use tauri::{command, Manager, PhysicalPosition, PhysicalSize};
-use crate::state::AppState;
+use std::sync::{Mutex, OnceLock};
 
 const MAX_DIM: u32 = 4096;
+// Task 1 standalone anchor; folded into AppState in Task 4. Init at launch to
+// the default bottom-right of the work area.
+static ANCHOR: OnceLock<Mutex<(i32, i32)>> = OnceLock::new();
+pub fn anchor_cell() -> &'static Mutex<(i32, i32)> { ANCHOR.get_or_init(|| Mutex::new((0, 0))) }
 
 #[command]
-pub fn report_bounds(app: tauri::AppHandle, state: tauri::State<AppState>, w: f64, h: f64) {
+pub fn report_bounds(app: tauri::AppHandle, w: f64, h: f64) {
     if !w.is_finite() || !h.is_finite() { return; }
     let Some(win) = app.get_webview_window("main") else { return; };
     let nw = (w.max(1.0) as u32).min(MAX_DIM);
     let nh = (h.max(1.0) as u32).min(MAX_DIM);
-    // anchor = the screen point where the pet's bottom-left must stay (stored;
+    // anchor = screen point where the pet's bottom-left must stay (stored;
     // updated only on drag-end / launch — never read from the live window).
-    let (ax, ay_bottom) = state.anchor();
+    let (ax, ay_bottom) = *anchor_cell().lock().unwrap();
     let _ = win.set_size(PhysicalSize::new(nw, nh));
     // top-left = anchor_x , anchor_bottom - height  → window grows upward, pet stays put.
     let _ = win.set_position(PhysicalPosition::new(ax, ay_bottom - nh as i32));
 }
 ```
-`AppState` gains `anchor() -> (i32,i32)` and `set_anchor(x, y_bottom)` over a `Mutex<(i32,i32)>` (added with the rest of `AppState` in Task 4; for this task, stub a module-level `OnceLock<Mutex<(i32,i32)>>` initialised to the launch position so Task 1 stands alone, then fold it into `AppState` in Task 4). The anchor is set at launch (default bottom-right of the work area) and updated on drag-end in Task 8.
+**Task 4 migration:** move the anchor into `AppState` as `anchor() -> (i32,i32)` / `set_anchor(x, y_bottom)` over a `Mutex<(i32,i32)>`, change `report_bounds` to take `tauri::State<AppState>` and read `state.anchor()`. The anchor is set at launch (default bottom-right of the work area) and updated on drag-end in Task 8.
 
 - [ ] **Step 6: Implement `window.rs` to apply the transparent bounding-box flags at startup**
 ```rust
@@ -764,7 +769,7 @@ In `handlers.rs` test module, assert: known state → `200` and an emitted `pet:
 
 - [ ] **Step 4: Run — expect PASS.**
 
-- [ ] **Step 5: Write the failing bridge test** (`bridge.test.ts`, jsdom) — feed a `pet:state` payload to the bridge's handler and assert it validates and calls `AgentPet.setState` only for valid states. Factor the bridge's event handling into a pure `handleStateEvent(payload, api)` so it's testable without Tauri:
+- [ ] **Step 5: Write the failing bridge test** (`bridge.test.ts`, pure-node — no DOM) — feed a `pet:state` payload to the bridge's handler and assert it validates and calls `AgentPet.setState` only for valid states. Factor the bridge's event handling into a pure `handleStateEvent(payload, api)` so it's testable without Tauri:
 ```ts
 import { handleStateEvent } from './bridge-handlers.js';
 it('forwards a valid state', () => {
