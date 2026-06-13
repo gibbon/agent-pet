@@ -10,6 +10,14 @@ const THRESHOLD = 2;
 let lastBounds = null;
 let registry = new Set(actionRegistry(launchConfig.manifest ?? launchConfig));
 
+try {
+  localStorage.setItem(`${launchConfig.storageKey}:position`, JSON.stringify({ right: 8, bottom: 8 }));
+  localStorage.removeItem(`${launchConfig.storageKey}:hidden`);
+} catch {
+  // localStorage can be unavailable in hardened webview modes; the widget has
+  // its own fallback defaults.
+}
+
 function root() {
   return document.getElementById('pet-root');
 }

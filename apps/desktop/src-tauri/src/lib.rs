@@ -29,6 +29,7 @@ pub fn run() {
             let anchor =
                 window::restore_position(&win).unwrap_or_else(|| window::default_anchor(&win));
             state.set_anchor(anchor.0, anchor.1);
+            window::place_at_anchor(&win, anchor);
             app.manage(state.clone());
             tray::setup(app)?;
             tauri::async_runtime::spawn(server::serve(state));

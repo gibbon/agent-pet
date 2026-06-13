@@ -1,5 +1,8 @@
 use tauri::{PhysicalPosition, WebviewWindow};
 
+const DEFAULT_WINDOW_W: i32 = 160;
+const DEFAULT_WINDOW_H: i32 = 160;
+
 pub fn harden(win: &WebviewWindow) {
     let _ = win.set_decorations(false);
     let _ = win.set_always_on_top(true);
@@ -22,6 +25,9 @@ pub fn default_anchor(win: &WebviewWindow) -> (i32, i32) {
 pub fn restore_position(win: &WebviewWindow) -> Option<(i32, i32)> {
     let raw = std::fs::read_to_string(crate::portfile::position_file_path()).ok()?;
     let [x, y]: [i32; 2] = serde_json::from_str(&raw).ok()?;
+    if !position_on_any_monitor(win, x, y) {
+        return None;
+    }
     let _ = win.set_position(PhysicalPosition::new(x, y));
     let h = win.outer_size().ok()?.height as i32;
     Some((x, y + h))
@@ -32,4 +38,22 @@ pub fn persist_position(win: &tauri::Window) {
         let raw = serde_json::to_string(&[pos.x, pos.y]).unwrap_or_else(|_| "[0,0]".to_string());
         let _ = std::fs::write(crate::portfile::position_file_path(), raw);
     }
+}
+
+pub fn place_at_anchor(win: &WebviewWindow, anchor: (i32, i32)) {
+    let _ = win.set_position(PhysicalPosition::new(anchor.0, anchor.1 - DEFAULT_WINDOW_H));
+}
+
+fn position_on_any_monitor(win: &WebviewWindow, x: i32, y: i32) -> bool {
+    let Ok(monitors) = win.available_monitors() else {
+        return true;
+    };
+    monitors.into_iter().any(|monitor| {
+        let pos = monitor.position();
+        let size = monitor.size();
+        x >= pos.x - DEFAULT_WINDOW_W
+            && y >= pos.y - DEFAULT_WINDOW_H
+            && x <= pos.x + size.width as i32
+            && y <= pos.y + size.height as i32
+    })
 }
