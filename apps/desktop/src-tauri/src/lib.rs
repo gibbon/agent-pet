@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod commands;
 pub mod pet;
 pub mod portfile;

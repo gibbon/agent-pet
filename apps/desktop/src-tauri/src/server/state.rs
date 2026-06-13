@@ -2,11 +2,14 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
+use crate::agent::AgentSupervisor;
+
 #[derive(Clone)]
 pub struct AppState {
     pub token: String,
     pub registry: Arc<RwLock<HashSet<String>>>,
     pub app: tauri::AppHandle,
+    pub agent: AgentSupervisor,
     anchor: Arc<Mutex<(i32, i32)>>,
     rate: Arc<Mutex<TokenBucket>>,
 }
@@ -28,6 +31,7 @@ impl AppState {
                 crate::pet::STATES.iter().map(|s| s.to_string()).collect(),
             )),
             app,
+            agent: AgentSupervisor::new(),
             anchor: Arc::new(Mutex::new((0, 0))),
             rate: Arc::new(Mutex::new(TokenBucket {
                 tokens: 60.0,

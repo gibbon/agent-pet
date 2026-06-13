@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::Emitter;
 
+use crate::agent::AgentError;
+
 use super::state::AppState;
 
 const TEXT_CAP: usize = 4096;
@@ -29,6 +31,11 @@ pub struct SayPayload {
     text: String,
     ttl: Option<u64>,
     link: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct AgentStartPayload {
+    tool: String,
 }
 
 #[derive(Serialize)]
@@ -123,6 +130,72 @@ pub async fn actions(State(app_state): State<AppState>) -> Json<ActionsResponse>
     })
 }
 
+pub async fn agent_tools(
+    State(app_state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    app_state
+        .app
+        .emit("pet:state", json!({ "state": "waiting" }))
+        .ok();
+    Ok(Json(json!({ "tools": app_state.agent.tools() })))
+}
+
+pub async fn agent_status(State(app_state): State<AppState>) -> Json<serde_json::Value> {
+    Json(json!(app_state.agent.status()))
+}
+
+pub async fn agent_start(
+    State(app_state): State<AppState>,
+    Json(payload): Json<AgentStartPayload>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app_state.agent.start(&payload.tool) {
+        Ok(status) => {
+            app_state
+                .app
+                .emit("pet:state", json!({ "state": "building" }))
+                .ok();
+            app_state
+                .app
+                .emit(
+                    "pet:say",
+                    json!({ "text": format!("{} started", payload.tool) }),
+                )
+                .ok();
+            Ok(Json(json!(status)))
+        }
+        Err(err) => Err(agent_error_status(err)),
+    }
+}
+
+pub async fn agent_stop(
+    State(app_state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match app_state.agent.stop() {
+        Ok(status) => {
+            app_state
+                .app
+                .emit("pet:state", json!({ "state": "idle" }))
+                .ok();
+            app_state
+                .app
+                .emit("pet:say", json!({ "text": "agent stopped" }))
+                .ok();
+            Ok(Json(json!(status)))
+        }
+        Err(err) => Err(agent_error_status(err)),
+    }
+}
+
+fn agent_error_status(err: AgentError) -> StatusCode {
+    match err {
+        AgentError::UnknownTool => StatusCode::BAD_REQUEST,
+        AgentError::AlreadyRunning => StatusCode::CONFLICT,
+        AgentError::NotRunning => StatusCode::NOT_FOUND,
+        AgentError::MissingInstall => StatusCode::FAILED_DEPENDENCY,
+        AgentError::SpawnFailed => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,5 +231,21 @@ mod tests {
     #[test]
     fn rejects_javascript() {
         assert!(safe_link("javascript:alert(1)").is_none());
+    }
+
+    #[test]
+    fn maps_agent_errors_to_http_status() {
+        assert_eq!(
+            agent_error_status(AgentError::UnknownTool),
+            StatusCode::BAD_REQUEST
+        );
+        assert_eq!(
+            agent_error_status(AgentError::AlreadyRunning),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            agent_error_status(AgentError::MissingInstall),
+            StatusCode::FAILED_DEPENDENCY
+        );
     }
 }

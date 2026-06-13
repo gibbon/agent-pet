@@ -17,6 +17,10 @@ pub async fn serve(state: AppState) {
         .route("/play", post(handlers::play))
         .route("/say", post(handlers::say))
         .route("/actions", get(handlers::actions))
+        .route("/agent/tools", get(handlers::agent_tools))
+        .route("/agent/status", get(handlers::agent_status))
+        .route("/agent/start", post(handlers::agent_start))
+        .route("/agent/stop", post(handlers::agent_stop))
         .with_state(state.clone())
         .layer(middleware::from_fn_with_state(
             state.clone(),

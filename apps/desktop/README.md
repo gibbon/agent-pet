@@ -30,6 +30,17 @@ curl -X POST "127.0.0.1:$PORT/say" -H 'x-agent-pet:1' -H "authorization: Bearer 
 curl "127.0.0.1:$PORT/actions" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN"
 ```
 
+## Agent runner
+
+The desktop app also exposes an experimental allowlisted agent runner. It does not execute arbitrary shell commands. The first supported tool is `rdan`, resolved from `AGENT_PET_RDAN_DIR`, `../r.dan`, `../../r.dan`, or `~/projects/r.dan`.
+
+```bash
+curl "127.0.0.1:$PORT/agent/tools" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN"
+curl "127.0.0.1:$PORT/agent/status" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN"
+curl -X POST "127.0.0.1:$PORT/agent/start" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"tool":"rdan"}'
+curl -X POST "127.0.0.1:$PORT/agent/stop" -H 'x-agent-pet:1' -H "authorization: Bearer $TOKEN"
+```
+
 ## Security model
 
 The server binds only `127.0.0.1`. Mutating endpoints require `X-Agent-Pet: 1` and `Authorization: Bearer <token>`, reject cross-site browser provenance signals, cap body size, and rate limit requests. The token is regenerated each launch and compared in constant time.
@@ -48,5 +59,6 @@ The `Desktop Windows Installer` workflow builds the widget bundles, vendors them
 - Speech bubble grows and shrinks the native window.
 - `/actions` lists built-ins and custom manifest actions.
 - `/health` returns only `{"ok":true}`.
+- `/agent/tools` lists only allowlisted tools; `/agent/start` rejects unknown tools.
 - Clean quit removes `~/.agent-pet/port`.
 - Windows: `icacls %USERPROFILE%\.agent-pet\port` shows owner-only access.
