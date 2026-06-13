@@ -1,0 +1,17 @@
+{
+  "name": "agent-pet-desktop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "vendor": "node scripts/copy-bundles.mjs",
+    "build:web": "pnpm vendor && vite build --config vite.desktop.config.ts",
+    "dev": "pnpm vendor && tauri dev",
+    "build": "pnpm build:web && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/cli": "^2",
+    "vite": "^8.0.11",
+    "vitest": "^4.1.5"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Minimal desktop buddy permissions.",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-position",
+    "core:window:allow-set-size",
+    "core:app:allow-default-window-icon",
+    "allow-report-bounds",
+    "allow-start-drag",
+    "allow-quit",
+    "allow-report-registry"
+  ]
+}
