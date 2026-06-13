@@ -8,8 +8,9 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const distDir = new URL('../dist', import.meta.url).pathname;
+const distDir = fileURLToPath(new URL('../dist/', import.meta.url));
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {
