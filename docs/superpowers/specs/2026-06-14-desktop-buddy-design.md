@@ -26,10 +26,6 @@ desktop app is therefore a thin native shell around code that already exists.
   no Linux installer is produced. The only shipped artifact is the Windows installer.
 - **`agent-pet` CLI.** Raw HTTP (`curl`) is sufficient to drive the pet for the MVP. A convenience
   CLI can come later as a thin client over the same HTTP API.
-- **Custom/manifest actions over HTTP.** The widget's API surface is wider than the 9 built-in
-  states — `PetActionName = WidgetState | (string & {})` with `play(name)` for manifest actions
-  (`api.ts:64`). The MVP control server accepts **only the 9 built-in states**; `play()` / custom
-  actions are deferred.
 - **Full settings UI.** No in-app pet picker / preferences window. Configuration is via launch
   config; the tray offers only show/hide and quit.
 - **Autonomous roaming.** The pet stays where the user drags it; it does not walk the screen on
@@ -58,9 +54,12 @@ existing widget on a transparent host page plus a small bridge script.
    webview: `report_bounds`, `start_drag`, `quit` (all three validate their inputs, §7).
 2. **Pet host page** — a minimal `index.html` that loads the built widget IIFE into a transparent
    fullscreen-of-window container and applies launch config.
-3. **Bridge JS (~30–50 lines)** — listens for Tauri events emitted by the control server,
+3. **Bridge JS (~40–60 lines)** — listens for Tauri events emitted by the control server,
    **re-validates each payload as untrusted** (§7), and calls `AgentPet.setState(state)` /
-   `AgentPet.say(text, opts)`. It also observes content bounds and reports them to Rust (§4). It
+   `AgentPet.play(action, opts)` / `AgentPet.say(text, opts)`. After applying launch config it
+   **reports its valid-action registry to Rust** (the 9 built-in states plus the keys of the
+   loaded manifest's `actions`/`richActions` maps) so the server can validate `/play` requests
+   against a known set (§5, §7). It also observes content bounds and reports them to Rust (§4). It
    never constructs DOM from a payload — all rendering goes through the widget's existing
    `textContent` + `safeBubbleLink` enforcement points.
 4. **Control server (Rust, `axum`)** — listens on `127.0.0.1:PORT`. Endpoints in §5.
@@ -75,6 +74,7 @@ fields not listed are dropped by the bridge before it calls the `AgentPet` API.
 | Event       | Payload                                  | Bridge action |
 |-------------|------------------------------------------|---------------|
 | `pet:state` | `{ state: WidgetState }`                 | validate `state ∈` 9 states → `AgentPet.setState(state)` |
+| `pet:play`  | `{ action: string, loops?: number, durationMs?: number }` | validate `action ∈` registry, bound `loops`/`durationMs` → `AgentPet.play(action, {loops, durationMs})` |
 | `pet:say`   | `{ text: string, ttl?: number, link?: string }` | cap `text`, bound `ttl`, absolute-URL `link` only → `AgentPet.say(text, {ttl, link})` |
 
 ## 4. Window model — dynamic bounding box
@@ -113,12 +113,21 @@ allocation. **The auth/origin middleware (§7) runs first of all**, before any h
 
 | Method | Path     | Auth | Body                                   | Effect |
 |--------|----------|------|----------------------------------------|--------|
-| POST   | `/state` | yes  | `{ "state": "thinking" }`              | Validate against the 9 states → emit `pet:state`. |
+| POST   | `/state` | yes  | `{ "state": "thinking" }`              | Validate against the 9 states → emit `pet:state` (`setState`, persistent mood). |
+| POST   | `/play`  | yes  | `{ "action": "hadouken", "loops"?, "durationMs"? }` | Validate `action` against the **action registry** (9 states + manifest action keys); bound `loops`/`durationMs` → emit `pet:play` (`play`, one-shot). |
 | POST   | `/say`   | yes  | `{ "text": "...", "ttl"?, "link"? }`   | Cap text; bound ttl; **absolute** http/https/mailto link only, re-validated in Rust → emit `pet:say`. |
+| GET    | `/actions`| yes | —                                      | Returns the current action registry (the names `/play` accepts) so clients can discover a custom pet's moves. |
 | GET    | `/health`| no   | —                                      | Bare `200 {"ok":true}` liveness only — **no version disclosed**. |
 
 Valid states (the existing `WidgetState` union): `idle`, `thinking`, `building`, `delegating`,
 `success`, `error`, `greeting`, `waiting`, `leaving`.
+
+**Action registry.** `/state` stays a closed 9-string allowlist. `/play` accepts any name in the
+**registry**, which the bridge reports to Rust after applying launch config: the 9 states plus the
+keys of the loaded manifest's `actions`/`richActions` maps (`api.ts:64`, `manifest.ts:95`). Rust
+holds this set and rejects unknown actions, so validation stays a closed (just dynamic) allowlist
+rather than an open charset. Until the registry arrives (pre-config), `/play` accepts only the 9
+states. `/actions` exposes the live set for discovery.
 
 **Port discovery & lifecycle:** on startup the server writes the bound port and the session token
 (§7) to `~/.agent-pet/port`. The file is created **atomically** (`O_CREAT|O_EXCL`, restrictive
@@ -133,6 +142,8 @@ existing window and exits `0`.
 
 - Missing/incorrect auth header or cross-origin signal → `403` in middleware, before any work.
 - Unknown state → `400`, no event emitted.
+- `/play` action not in the registry → `400`; `loops`/`durationMs` out of bounds → clamped (not
+  rejected) so a one-shot still plays sensibly.
 - `text` over the cap (a few KB) or body over the request cap → `413`/`400`, rejected before parse.
 - `link` re-validated server-side: **absolute** http/https/mailto only (relative URLs rejected —
   there is no meaningful page origin to resolve against in the desktop shell). A rejected link is
@@ -191,15 +202,24 @@ surface. The widget's JS layer is already hardened — speech text is inserted v
    args in Rust — `report_bounds` clamps to finite, non-negative values within the virtual-screen
    bounds and a sane max size, so a buggy/hijacked bridge cannot grief the window manager.
 7. **Untrusted-input trust boundary, both directions.** (a) The bridge JS treats every Tauri event
-   payload as untrusted: accept only `state ∈` 9 states and `{text:string(capped), link?:string,
-   ttl?:number(bounded)}`, ignore all other fields, never build DOM from the payload. (b) Rust
-   re-runs the http/https/mailto allowlist on `/say` `link` and rejects relative URLs (§6) — the
-   JS layer is defense-in-depth, not the only check.
+   payload as untrusted: accept only `state ∈` 9 states; `action ∈` the action registry;
+   `{text:string(capped), link?:string, ttl?:number(bounded)}`; and bounded `loops`/`durationMs`
+   for `/play` (so a huge `durationMs` cannot freeze the pet on one action). Ignore all other
+   fields, never build DOM from the payload. (b) Rust validates `/play` `action` against the
+   registry the bridge reported (closed set, not a charset), and re-runs the http/https/mailto
+   allowlist on `/say` `link`, rejecting relative URLs (§6) — the JS layer is defense-in-depth, not
+   the only check. (c) The registry-report IPC command is itself validated: names must match a
+   conservative syntactic floor (`^[A-Za-z0-9_-]{1,48}$`) before Rust will store them.
 8. **Spritesheet / image sources.** The control server **cannot** set the image URL — it is
    launch-config only, validated in Rust at load (`https:` + bundled-asset scheme only; reject
    `file:`/`data:`/`http:`). CSP `img-src` (above) is the backstop, pinned to the actual hosts the
    providers use — `codex-pets.net` (`codex.ts:8`) and `j20.nz` (`hatchery.ts:11`); confirm
    hatchery's catalog-resolved image hosts fall under `j20.nz` before shipping.
+8a. **Rich runtime is bundled locally.** Custom/manifest actions may use the rich runtime, which
+   the widget lazy-imports from `richRuntimeUrl` (defaults to a CDN sibling of the base widget).
+   Under `script-src 'self'` a remote fetch is blocked, so the desktop build bundles
+   `dist/agent-pet-rich.iife.js` alongside the widget and launch config pins `richRuntimeUrl` to
+   that **local** file. No runtime script is loaded over the network.
 9. **Port-file permissions are a Windows-ACL problem, not `0600`.** The MVP ships on **Windows**,
    where `0600` is a no-op and the file inherits NTFS ACLs. Create `~/.agent-pet/port` with
    explicit restrictive ACLs (owner-only) at creation time, atomically; on Unix use
@@ -217,7 +237,9 @@ surface. The widget's JS layer is already hardened — speech text is inserted v
 
 ## 8. Testing strategy
 
-- **Rust unit tests** on the control-server handlers and middleware: state validation, body/text
+- **Rust unit tests** on the control-server handlers and middleware: state validation, **`/play`
+  action validation against the reported registry (unknown action → 400; pre-config → only 9
+  states) and `loops`/`durationMs` bounding; registry-name syntactic floor**, body/text
   caps, link re-validation (absolute-only), auth-header + `Sec-Fetch-Site`/`Origin` rejection,
   constant-time compare, rate-limit behavior, `report_bounds` clamping, event mapping.
 - **Bridge unit tests (headless JS)** for the two genuinely risky pieces: (a) event payload →
@@ -245,7 +267,9 @@ apps/desktop/
   desktop-windows.yml # windows-latest: build widget → Tauri NSIS bundle → upload installer
 ```
 
-**Build dependency:** `dist/agent-pet-widget.iife.js` is a build artifact, not committed. The
-desktop build must run the widget build first (`pnpm install && pnpm build`) and copy/symlink the
-IIFE into `apps/desktop/web/` at build time, with a **fail-fast check** that errors clearly if the
-bundle is missing — never vendor a stale copy. The CI workflow encodes this ordering explicitly.
+**Build dependency:** `dist/agent-pet-widget.iife.js` **and `dist/agent-pet-rich.iife.js`** are
+build artifacts, not committed. The desktop build must run the widget build first
+(`pnpm install && pnpm build`) and copy/symlink **both** bundles into `apps/desktop/web/` at build
+time, with a **fail-fast check** that errors clearly if either is missing — never vendor a stale
+copy. Launch config pins `richRuntimeUrl` to the local rich bundle (§7.8a). The CI workflow encodes
+this ordering explicitly.
