@@ -74,6 +74,40 @@ function fallbackSpeech() {
   return document.getElementById('desktop-fallback-speech');
 }
 
+function widgetShadow() {
+  return root()?.firstElementChild?.shadowRoot ?? null;
+}
+
+function widgetSprite() {
+  return widgetShadow()?.querySelector('[class*="sprite"], [data-agent-pet-sprite], img') ?? null;
+}
+
+function hasRealWidgetSprite() {
+  const sprite = widgetSprite();
+  if (!sprite) return false;
+  const r = sprite.getBoundingClientRect();
+  if (r.width <= 0 || r.height <= 0) return false;
+  const style = getComputedStyle(sprite);
+  return style.backgroundImage !== 'none' || sprite.tagName === 'IMG';
+}
+
+function syncFallbackVisibility() {
+  const el = fallbackPet();
+  if (!el) return;
+  el.hidden = hasRealWidgetSprite();
+}
+
+function hideWidgetStartupBubble() {
+  const shadow = widgetShadow();
+  const candidates = shadow?.querySelectorAll('[class*="bubble"]') ?? [];
+  for (const el of candidates) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      el.style.display = 'none';
+    }
+  }
+}
+
 function resolveWidgetApi() {
   let api = null;
   try {
@@ -98,8 +132,8 @@ function resolveWidgetApi() {
 
 function inspectWidget(label) {
   const host = root()?.firstElementChild;
-  const shadow = host?.shadowRoot;
-  const sprite = shadow?.querySelector('[class*="sprite"], [data-agent-pet-sprite], .ap-image, span');
+  const shadow = widgetShadow();
+  const sprite = widgetSprite() ?? shadow?.querySelector('.ap-image, span');
   const overlay = shadow?.querySelector('.ap-overlay');
   const spriteRect = sprite?.getBoundingClientRect();
   const overlayRect = overlay?.getBoundingClientRect();
@@ -139,7 +173,7 @@ function localRect(el) {
 
 function findPetElement() {
   const host = root().firstElementChild;
-  const widgetPet = host?.shadowRoot?.querySelector('[class*="sprite"], [data-agent-pet-sprite], img');
+  const widgetPet = widgetSprite();
   if (widgetPet) {
     const r = widgetPet.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) return widgetPet;
@@ -148,8 +182,7 @@ function findPetElement() {
 }
 
 function findBubbleElement() {
-  const host = root().firstElementChild;
-  const candidates = host?.shadowRoot?.querySelectorAll('[class*="bubble"], a, output') ?? [];
+  const candidates = widgetShadow()?.querySelectorAll('[class*="bubble"], a, output') ?? [];
   for (const el of candidates) {
     const r = el.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) return el;
@@ -172,10 +205,16 @@ function observeBounds() {
   ro.observe(root());
   const pet = findPetElement();
   if (pet) ro.observe(pet);
-  const mo = new MutationObserver(() => queueMicrotask(() => reportNow()));
+  const mo = new MutationObserver(() => queueMicrotask(() => {
+    syncFallbackVisibility();
+    reportNow();
+  }));
   mo.observe(root(), { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
   window.addEventListener('resize', () => reportNow());
-  setTimeout(() => reportNow(), 0);
+  setTimeout(() => {
+    syncFallbackVisibility();
+    reportNow();
+  }, 0);
 }
 
 async function applyConfigAndReport() {
@@ -185,6 +224,8 @@ async function applyConfigAndReport() {
   registry = new Set(actionRegistry(launchConfig.manifest ?? launchConfig));
   await invoke('report_registry', { actions: [...registry] }).catch(() => {});
   diagnose('registry: reported', registry.size);
+  hideWidgetStartupBubble();
+  syncFallbackVisibility();
   reportNow();
 }
 
@@ -215,13 +256,9 @@ observeBounds();
 wireDrag();
 applyConfigAndReport().catch((err) => console.warn('[agent-pet desktop] launch config failed', err));
 setTimeout(() => {
-  try {
-    widgetApi?.say('agent-pet is running', { ttl: 3500 });
-  } catch (err) {
-    diagnose('say: failed', err?.message ?? err);
-  }
-  setFallbackSpeech('agent-pet is running');
-  inspectWidget('after say');
+  hideWidgetStartupBubble();
+  syncFallbackVisibility();
+  inspectWidget('after settle');
   reportNow();
 }, 250);
 
@@ -236,5 +273,6 @@ listen('pet:play', (event) => {
 listen('pet:say', (event) => {
   if (widgetApi) handleSayEvent(event.payload, widgetApi);
   setFallbackSpeech(event.payload?.text);
+  syncFallbackVisibility();
   setTimeout(() => reportNow(), 0);
 });
