@@ -4,11 +4,12 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../../..');
-const outDir = resolve(here, '../web/public/vendor');
-const bundles = ['agent-pet-widget.iife.js', 'agent-pet-rich.iife.js'];
+const runtimeOutDir = resolve(here, '../web/public/vendor');
+const buildOutDir = resolve(here, '../web/vendor');
+const runtimeBundles = ['agent-pet-rich.iife.js'];
+const buildBundles = ['agent-pet-widget.es.js'];
 
-mkdirSync(outDir, { recursive: true });
-for (const name of bundles) {
+function copyBundle(name, outDir) {
   const src = resolve(repoRoot, 'dist', name);
   if (!existsSync(src)) {
     console.error(`\n[copy-bundles] MISSING: dist/${name}\n` +
@@ -18,3 +19,8 @@ for (const name of bundles) {
   copyFileSync(src, resolve(outDir, name));
   console.log(`[copy-bundles] vendored ${name}`);
 }
+
+mkdirSync(runtimeOutDir, { recursive: true });
+mkdirSync(buildOutDir, { recursive: true });
+for (const name of runtimeBundles) copyBundle(name, runtimeOutDir);
+for (const name of buildBundles) copyBundle(name, buildOutDir);

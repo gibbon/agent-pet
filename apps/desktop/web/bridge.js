@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { createAgentPetAPI } from './vendor/agent-pet-widget.es.js';
 import { launchConfig } from './launch-config.js';
 import { unionRect, changedBeyond, withMargin } from './bounds.js';
 import { actionRegistry } from './registry.js';
@@ -74,9 +75,15 @@ function fallbackSpeech() {
 }
 
 function resolveWidgetApi() {
-  const api = globalThis.AgentPet;
+  let api = null;
+  try {
+    api = createAgentPetAPI();
+  } catch (err) {
+    diagnose('AgentPet: factory failed', err?.message ?? err);
+    return null;
+  }
   if (!api) {
-    diagnose('AgentPet: missing');
+    diagnose('AgentPet: factory returned empty');
     return null;
   }
   const methods = ['mount', 'show', 'say', 'setState', 'play'];
@@ -85,7 +92,7 @@ function resolveWidgetApi() {
     diagnose('AgentPet: incomplete', missing.join(','));
     return null;
   }
-  diagnose('AgentPet: loaded');
+  diagnose('AgentPet: ESM loaded');
   return api;
 }
 

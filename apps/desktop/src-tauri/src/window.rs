@@ -51,9 +51,9 @@ fn position_on_any_monitor(win: &WebviewWindow, x: i32, y: i32) -> bool {
     monitors.into_iter().any(|monitor| {
         let pos = monitor.position();
         let size = monitor.size();
-        x >= pos.x - DEFAULT_WINDOW_W
-            && y >= pos.y - DEFAULT_WINDOW_H
-            && x <= pos.x + size.width as i32
-            && y <= pos.y + size.height as i32
+        x >= pos.x
+            && y >= pos.y
+            && x <= pos.x + size.width as i32 - DEFAULT_WINDOW_W
+            && y <= pos.y + size.height as i32 - DEFAULT_WINDOW_H
     })
 }
