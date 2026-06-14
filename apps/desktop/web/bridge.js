@@ -9,10 +9,28 @@ const MARGIN = 8;
 const THRESHOLD = 2;
 let lastBounds = null;
 let registry = new Set(actionRegistry(launchConfig.manifest ?? launchConfig));
+let widgetApi = null;
+const diagnostics = [];
+
+function diagnose(message, detail) {
+  const suffix = detail === undefined ? '' : `: ${String(detail).slice(0, 180)}`;
+  const line = `${new Date().toLocaleTimeString()} ${message}${suffix}`;
+  diagnostics.push(line);
+  while (diagnostics.length > 8) diagnostics.shift();
+  const el = document.getElementById('desktop-diagnostics');
+  if (el && launchConfig.desktopDiagnostics) {
+    el.textContent = diagnostics.join('\n');
+    el.dataset.open = '1';
+  }
+  console.info(`[agent-pet desktop] ${message}`, detail ?? '');
+}
 
 function seedDesktopConfig() {
   if (launchConfig.desktopDebugFrame) {
     document.documentElement.dataset.debugFrame = '1';
+  }
+  if (launchConfig.desktopDiagnostics) {
+    document.getElementById('desktop-diagnostics')?.setAttribute('data-open', '1');
   }
 
   try {
@@ -35,7 +53,9 @@ function seedDesktopConfig() {
     }));
     localStorage.setItem(`${launchConfig.storageKey}:position`, JSON.stringify({ right: 0, bottom: 0 }));
     localStorage.removeItem(`${launchConfig.storageKey}:hidden`);
-  } catch {
+    diagnose('storage: seeded');
+  } catch (err) {
+    diagnose('storage: unavailable', err?.message ?? err);
     // localStorage can be unavailable in hardened webview modes; mount() still
     // receives the same config object as an in-memory fallback.
   }
@@ -51,6 +71,34 @@ function fallbackPet() {
 
 function fallbackSpeech() {
   return document.getElementById('desktop-fallback-speech');
+}
+
+function resolveWidgetApi() {
+  const api = globalThis.AgentPet;
+  if (!api) {
+    diagnose('AgentPet: missing');
+    return null;
+  }
+  const methods = ['mount', 'show', 'say', 'setState', 'play'];
+  const missing = methods.filter((name) => typeof api[name] !== 'function');
+  if (missing.length) {
+    diagnose('AgentPet: incomplete', missing.join(','));
+    return null;
+  }
+  diagnose('AgentPet: loaded');
+  return api;
+}
+
+function inspectWidget(label) {
+  const host = root()?.firstElementChild;
+  const shadow = host?.shadowRoot;
+  const sprite = shadow?.querySelector('[class*="sprite"], [data-agent-pet-sprite], .ap-image, span');
+  const overlay = shadow?.querySelector('.ap-overlay');
+  const spriteRect = sprite?.getBoundingClientRect();
+  const overlayRect = overlay?.getBoundingClientRect();
+  diagnose(`${label}: host`, host ? `${host.tagName}${shadow ? ' shadow' : ' no-shadow'}` : 'missing');
+  diagnose(`${label}: overlay`, overlayRect ? `${Math.round(overlayRect.width)}x${Math.round(overlayRect.height)}` : 'missing');
+  diagnose(`${label}: sprite`, spriteRect ? `${Math.round(spriteRect.width)}x${Math.round(spriteRect.height)} "${sprite.textContent ?? ''}"` : 'missing');
 }
 
 function setFallbackState(state) {
@@ -124,11 +172,12 @@ function observeBounds() {
 }
 
 async function applyConfigAndReport() {
-  if (launchConfig.manifest) {
-    await AgentPet.loadManifest(launchConfig.manifest);
+  if (widgetApi && launchConfig.manifest) {
+    await widgetApi.loadManifest(launchConfig.manifest);
   }
   registry = new Set(actionRegistry(launchConfig.manifest ?? launchConfig));
   await invoke('report_registry', { actions: [...registry] }).catch(() => {});
+  diagnose('registry: reported', registry.size);
   reportNow();
 }
 
@@ -140,27 +189,45 @@ function wireDrag() {
 }
 
 seedDesktopConfig();
-AgentPet.mount({ target: root(), ...launchConfig });
-AgentPet.show();
+widgetApi = resolveWidgetApi();
+if (widgetApi) {
+  try {
+    widgetApi.mount({ target: root(), ...launchConfig });
+    diagnose('mount: called');
+    widgetApi.show();
+    diagnose('show: called');
+  } catch (err) {
+    diagnose('mount: failed', err?.stack ?? err?.message ?? err);
+    widgetApi = null;
+  }
+} else {
+  diagnose('mount: skipped');
+}
+inspectWidget('after mount');
 observeBounds();
 wireDrag();
 applyConfigAndReport().catch((err) => console.warn('[agent-pet desktop] launch config failed', err));
 setTimeout(() => {
-  AgentPet.say('agent-pet is running', { ttl: 3500 });
+  try {
+    widgetApi?.say('agent-pet is running', { ttl: 3500 });
+  } catch (err) {
+    diagnose('say: failed', err?.message ?? err);
+  }
   setFallbackSpeech('agent-pet is running');
+  inspectWidget('after say');
   reportNow();
 }, 250);
 
 listen('pet:state', (event) => {
-  handleStateEvent(event.payload, AgentPet);
+  if (widgetApi) handleStateEvent(event.payload, widgetApi);
   setFallbackState(event.payload?.state);
 });
 listen('pet:play', (event) => {
-  handlePlayEvent(event.payload, AgentPet, registry);
+  if (widgetApi) handlePlayEvent(event.payload, widgetApi, registry);
   setFallbackState(event.payload?.action);
 });
 listen('pet:say', (event) => {
-  handleSayEvent(event.payload, AgentPet);
+  if (widgetApi) handleSayEvent(event.payload, widgetApi);
   setFallbackSpeech(event.payload?.text);
   setTimeout(() => reportNow(), 0);
 });

@@ -63,6 +63,25 @@
     #desktop-fallback-speech[data-open="1"] {
       display: block;
     }
+    #desktop-diagnostics {
+      position: fixed;
+      left: 4px;
+      top: 4px;
+      max-width: min(300px, calc(100% - 8px));
+      display: none;
+      color: #e8f4f8;
+      background: rgba(17, 24, 29, 0.9);
+      border: 1px solid rgba(126, 184, 218, 0.72);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font: 11px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+      white-space: pre-wrap;
+      pointer-events: none;
+      z-index: 20;
+    }
+    #desktop-diagnostics[data-open="1"] {
+      display: block;
+    }
     @keyframes fallback-bob {
       from { transform: translateY(0); }
       to { transform: translateY(-8px); }
@@ -102,6 +121,7 @@
 </head>
 <body>
   <div id="pet-root"></div>
+  <div id="desktop-diagnostics" role="status"></div>
   <div id="desktop-fallback-speech" role="status"></div>
   <div id="desktop-fallback-pet" aria-label="Buddy pet">🐾</div>
   <script src="./vendor/agent-pet-widget.iife.js"></script>

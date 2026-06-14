@@ -5,4 +5,5 @@ export const launchConfig = {
   storageKey: 'agent-pet:desktop',
   richRuntimeUrl: '/vendor/agent-pet-rich.iife.js',
   desktopDebugFrame: false,
+  desktopDiagnostics: true,
 };
