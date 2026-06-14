@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Buddy Controls</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Segoe UI", system-ui, sans-serif;
+      background: #111820;
+      color: #e8f4f8;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      min-width: 420px;
+      min-height: 520px;
+      background: #111820;
+    }
+    main {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      min-height: 100vh;
+    }
+    header {
+      padding: 18px 20px 12px;
+      border-bottom: 1px solid rgba(126, 184, 218, 0.22);
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+    .subhead {
+      margin: 5px 0 0;
+      color: #9bb2bd;
+      font-size: 12px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      padding: 12px 20px;
+      border-bottom: 1px solid rgba(126, 184, 218, 0.14);
+    }
+    .toolbar button,
+    .state-grid button {
+      border: 1px solid rgba(126, 184, 218, 0.32);
+      background: #17232c;
+      color: #e8f4f8;
+      border-radius: 6px;
+      cursor: pointer;
+      font: inherit;
+    }
+    .toolbar button {
+      height: 32px;
+      padding: 0 11px;
+      font-size: 12px;
+    }
+    .toolbar button:hover,
+    .state-grid button:hover {
+      border-color: rgba(126, 184, 218, 0.72);
+      background: #1d303b;
+    }
+    .content {
+      overflow: auto;
+      padding: 16px 20px 20px;
+    }
+    section + section {
+      margin-top: 20px;
+    }
+    h2 {
+      margin: 0 0 10px;
+      color: #bcd4dd;
+      font-size: 12px;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .state-grid button {
+      min-height: 44px;
+      padding: 8px 10px;
+      text-align: left;
+      overflow: hidden;
+    }
+    .state-grid .label {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 620;
+    }
+    .state-grid .kind {
+      display: block;
+      margin-top: 2px;
+      color: #8fa5af;
+      font-size: 11px;
+    }
+    .empty {
+      margin: 0;
+      color: #8fa5af;
+      font-size: 13px;
+    }
+    footer {
+      min-height: 34px;
+      padding: 9px 20px;
+      color: #9bb2bd;
+      border-top: 1px solid rgba(126, 184, 218, 0.14);
+      font-size: 12px;
+    }
+    [data-active="true"] {
+      border-color: #7eb8da !important;
+      background: #203849 !important;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Buddy Controls</h1>
+      <p class="subhead">Preview animation states and registered actions.</p>
+    </header>
+    <div class="toolbar">
+      <button type="button" data-state="idle">Idle</button>
+      <button type="button" data-state="thinking">Thinking</button>
+      <button type="button" data-state="building">Building</button>
+      <button type="button" data-say="Preview message">Say</button>
+    </div>
+    <div class="content">
+      <section>
+        <h2>States</h2>
+        <div id="states" class="state-grid"></div>
+      </section>
+      <section>
+        <h2>Actions</h2>
+        <div id="actions" class="state-grid"></div>
+        <p id="empty-actions" class="empty" hidden>No custom actions registered yet.</p>
+      </section>
+    </div>
+    <footer id="status">Loading animations...</footer>
+  </main>
+  <script type="module" src="./controls.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-animation-registry"
+description = "Enables the animation_registry command without any pre-configured scope."
+commands.allow = ["animation_registry"]
+
+[[permission]]
+identifier = "deny-animation-registry"
+description = "Denies the animation_registry command without any pre-configured scope."
+commands.deny = ["animation_registry"]

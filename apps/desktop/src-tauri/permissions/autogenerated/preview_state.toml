@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-preview-state"
+description = "Enables the preview_state command without any pre-configured scope."
+commands.allow = ["preview_state"]
+
+[[permission]]
+identifier = "deny-preview-state"
+description = "Denies the preview_state command without any pre-configured scope."
+commands.deny = ["preview_state"]

@@ -5,6 +5,10 @@ fn main() {
             "start_drag",
             "quit",
             "report_registry",
+            "animation_registry",
+            "preview_state",
+            "preview_action",
+            "preview_say",
         ]),
     ))
     .expect("failed to run tauri build script");

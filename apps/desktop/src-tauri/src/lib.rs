@@ -20,6 +20,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::report_bounds,
             commands::report_registry,
+            commands::animation_registry,
+            commands::preview_state,
+            commands::preview_action,
+            commands::preview_say,
             commands::start_drag,
             commands::quit
         ])

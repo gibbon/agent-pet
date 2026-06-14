@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use serde_json::json;
+use tauri::Emitter;
 use tauri::{command, Manager, PhysicalPosition, PhysicalSize};
 
 use crate::server::AppState;
@@ -28,6 +30,43 @@ pub fn report_registry(state: tauri::State<AppState>, actions: Vec<String>) {
         .filter(|a| crate::pet::action_name_ok(a))
         .collect();
     state.set_registry(clean);
+}
+
+#[command]
+pub fn animation_registry(state: tauri::State<AppState>) -> Vec<String> {
+    state.registry_list()
+}
+
+#[command]
+pub fn preview_state(app: tauri::AppHandle, state: String) -> Result<(), String> {
+    if !crate::pet::is_state(&state) {
+        return Err("unknown state".to_string());
+    }
+    app.emit("pet:state", json!({ "state": state }))
+        .map_err(|err| err.to_string())
+}
+
+#[command]
+pub fn preview_action(
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+    action: String,
+) -> Result<(), String> {
+    if !state.registry_contains(&action) {
+        return Err("unknown action".to_string());
+    }
+    app.emit(
+        "pet:play",
+        json!({ "action": action, "loops": 1, "durationMs": null }),
+    )
+    .map_err(|err| err.to_string())
+}
+
+#[command]
+pub fn preview_say(app: tauri::AppHandle, text: String) -> Result<(), String> {
+    let capped: String = text.chars().take(240).collect();
+    app.emit("pet:say", json!({ "text": capped, "ttl": 3000 }))
+        .map_err(|err| err.to_string())
 }
 
 #[command]

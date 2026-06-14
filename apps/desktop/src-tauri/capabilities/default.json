@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Minimal desktop buddy permissions.",
-  "windows": ["main"],
+  "windows": ["main", "controls"],
   "permissions": [
     "core:event:default",
     "core:window:default",
@@ -16,6 +16,10 @@
     "allow-report-bounds",
     "allow-start-drag",
     "allow-quit",
-    "allow-report-registry"
+    "allow-report-registry",
+    "allow-animation-registry",
+    "allow-preview-state",
+    "allow-preview-action",
+    "allow-preview-say"
   ]
 }

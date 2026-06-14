@@ -1,18 +1,25 @@
 use serde_json::json;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::Emitter;
-use tauri::Manager;
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show/Hide", true, None::<&str>)?;
+    let controls = MenuItem::with_id(app, "controls", "Animation Controls", true, None::<&str>)?;
     let start_rdan = MenuItem::with_id(app, "agent_start_rdan", "Start r.dan", true, None::<&str>)?;
     let stop_agent = MenuItem::with_id(app, "agent_stop", "Stop agent", true, None::<&str>)?;
     let agent_status = MenuItem::with_id(app, "agent_status", "Agent status", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
-        &[&show, &start_rdan, &stop_agent, &agent_status, &quit],
+        &[
+            &show,
+            &controls,
+            &start_rdan,
+            &stop_agent,
+            &agent_status,
+            &quit,
+        ],
     )?;
     TrayIconBuilder::new()
         .menu(&menu)
@@ -30,6 +37,11 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
                         let _ = win.show();
                         let _ = win.set_focus();
                     }
+                }
+            }
+            "controls" => {
+                if let Err(err) = open_controls(app) {
+                    emit_say(app, format!("controls failed: {err}"));
                 }
             }
             "agent_start_rdan" => {
@@ -60,6 +72,27 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
             _ => {}
         })
         .build(app)?;
+    Ok(())
+}
+
+fn open_controls(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if let Some(win) = app.get_webview_window("controls") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+        return Ok(());
+    }
+
+    WebviewWindowBuilder::new(app, "controls", WebviewUrl::App("controls.html".into()))
+        .title("Buddy Controls")
+        .inner_size(520.0, 620.0)
+        .min_inner_size(420.0, 480.0)
+        .resizable(true)
+        .decorations(true)
+        .always_on_top(false)
+        .skip_taskbar(false)
+        .center()
+        .build()?;
     Ok(())
 }
 
