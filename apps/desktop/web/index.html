@@ -18,6 +18,28 @@
       height: 100%;
       background: transparent;
     }
+    html[data-debug-frame="1"] body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      border: 1px solid rgba(126, 184, 218, 0.85);
+      background: rgba(126, 184, 218, 0.10);
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    html[data-debug-frame="1"] body::after {
+      content: "agent-pet";
+      position: fixed;
+      left: 6px;
+      top: 4px;
+      font: 11px/1.2 system-ui, sans-serif;
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(24, 31, 36, 0.82);
+      border: 1px solid rgba(126, 184, 218, 0.55);
+      border-radius: 4px;
+      padding: 2px 5px;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>

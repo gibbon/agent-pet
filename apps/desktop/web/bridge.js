@@ -10,12 +10,35 @@ const THRESHOLD = 2;
 let lastBounds = null;
 let registry = new Set(actionRegistry(launchConfig.manifest ?? launchConfig));
 
-try {
-  localStorage.setItem(`${launchConfig.storageKey}:position`, JSON.stringify({ right: 8, bottom: 8 }));
-  localStorage.removeItem(`${launchConfig.storageKey}:hidden`);
-} catch {
-  // localStorage can be unavailable in hardened webview modes; the widget has
-  // its own fallback defaults.
+function seedDesktopConfig() {
+  if (launchConfig.desktopDebugFrame) {
+    document.documentElement.dataset.debugFrame = '1';
+  }
+
+  try {
+    const raw = localStorage.getItem(launchConfig.storageKey);
+    const current = raw ? JSON.parse(raw) : {};
+    localStorage.setItem(launchConfig.storageKey, JSON.stringify({
+      ...current,
+      adopted: true,
+      enabled: true,
+      petId: 'custom',
+      custom: {
+        ...(current.custom ?? {}),
+        name: launchConfig.name,
+        glyph: launchConfig.glyph,
+        accent: launchConfig.accent,
+        imageUrl: launchConfig.imageUrl,
+        atlas: launchConfig.atlas,
+        richRuntimeUrl: launchConfig.richRuntimeUrl,
+      },
+    }));
+    localStorage.setItem(`${launchConfig.storageKey}:position`, JSON.stringify({ right: 0, bottom: 0 }));
+    localStorage.removeItem(`${launchConfig.storageKey}:hidden`);
+  } catch {
+    // localStorage can be unavailable in hardened webview modes; mount() still
+    // receives the same config object as an in-memory fallback.
+  }
 }
 
 function root() {
@@ -79,10 +102,16 @@ function wireDrag() {
   });
 }
 
+seedDesktopConfig();
 AgentPet.mount({ target: root(), ...launchConfig });
+AgentPet.show();
 observeBounds();
 wireDrag();
 applyConfigAndReport().catch((err) => console.warn('[agent-pet desktop] launch config failed', err));
+setTimeout(() => {
+  AgentPet.say('agent-pet is running', { ttl: 3500 });
+  reportNow();
+}, 250);
 
 listen('pet:state', (event) => handleStateEvent(event.payload, AgentPet));
 listen('pet:play', (event) => handlePlayEvent(event.payload, AgentPet, registry));
