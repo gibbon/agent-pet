@@ -23,6 +23,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm --dir apps/desktop install --frozen-lockfile
