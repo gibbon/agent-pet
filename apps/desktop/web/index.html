@@ -18,6 +18,64 @@
       height: 100%;
       background: transparent;
     }
+    #desktop-fallback-pet {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      width: 96px;
+      height: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 74px/1 "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", system-ui, sans-serif;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.32));
+      user-select: none;
+      cursor: grab;
+      pointer-events: auto;
+      z-index: 10;
+    }
+    #desktop-fallback-pet[data-state="building"],
+    #desktop-fallback-pet[data-state="thinking"] {
+      animation: fallback-bob 900ms ease-in-out infinite alternate;
+    }
+    #desktop-fallback-pet[data-state="success"] {
+      animation: fallback-jump 650ms ease-out 1;
+    }
+    #desktop-fallback-pet[data-state="error"] {
+      animation: fallback-shake 180ms linear 4;
+    }
+    #desktop-fallback-speech {
+      position: fixed;
+      right: 0;
+      bottom: 104px;
+      max-width: 220px;
+      display: none;
+      color: #e8f4f8;
+      background: rgba(24, 31, 36, 0.92);
+      border: 1.5px solid #7eb8da;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: 12px/1.35 system-ui, sans-serif;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+      pointer-events: auto;
+      z-index: 11;
+    }
+    #desktop-fallback-speech[data-open="1"] {
+      display: block;
+    }
+    @keyframes fallback-bob {
+      from { transform: translateY(0); }
+      to { transform: translateY(-8px); }
+    }
+    @keyframes fallback-jump {
+      0%, 100% { transform: translateY(0) scale(1); }
+      45% { transform: translateY(-22px) scale(1.06); }
+    }
+    @keyframes fallback-shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
     html[data-debug-frame="1"] body::before {
       content: "";
       position: fixed;
@@ -44,6 +102,8 @@
 </head>
 <body>
   <div id="pet-root"></div>
+  <div id="desktop-fallback-speech" role="status"></div>
+  <div id="desktop-fallback-pet" aria-label="Buddy pet">🐾</div>
   <script src="./vendor/agent-pet-widget.iife.js"></script>
   <script type="module" src="./launch-config.js"></script>
   <script type="module" src="./bridge.js"></script>

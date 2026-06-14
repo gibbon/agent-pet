@@ -45,6 +45,36 @@ function root() {
   return document.getElementById('pet-root');
 }
 
+function fallbackPet() {
+  return document.getElementById('desktop-fallback-pet');
+}
+
+function fallbackSpeech() {
+  return document.getElementById('desktop-fallback-speech');
+}
+
+function setFallbackState(state) {
+  const el = fallbackPet();
+  if (el) el.dataset.state = state;
+}
+
+function setFallbackSpeech(text) {
+  const bubble = fallbackSpeech();
+  if (!bubble) return;
+  const value = typeof text === 'string' ? text.slice(0, 240) : '';
+  bubble.textContent = value;
+  bubble.dataset.open = value ? '1' : '0';
+  if (value) {
+    setTimeout(() => {
+      if (bubble.textContent === value) {
+        bubble.textContent = '';
+        bubble.dataset.open = '0';
+        reportNow();
+      }
+    }, 4200);
+  }
+}
+
 function localRect(el) {
   if (!el) return null;
   const rr = root().getBoundingClientRect();
@@ -54,7 +84,12 @@ function localRect(el) {
 
 function findPetElement() {
   const host = root().firstElementChild;
-  return host?.shadowRoot?.querySelector('[class*="sprite"], [data-agent-pet-sprite], img') ?? host;
+  const widgetPet = host?.shadowRoot?.querySelector('[class*="sprite"], [data-agent-pet-sprite], img');
+  if (widgetPet) {
+    const r = widgetPet.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return widgetPet;
+  }
+  return fallbackPet() ?? host;
 }
 
 function findBubbleElement() {
@@ -64,6 +99,8 @@ function findBubbleElement() {
     const r = el.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) return el;
   }
+  const fallback = fallbackSpeech();
+  if (fallback?.dataset.open === '1') return fallback;
   return null;
 }
 
@@ -110,12 +147,20 @@ wireDrag();
 applyConfigAndReport().catch((err) => console.warn('[agent-pet desktop] launch config failed', err));
 setTimeout(() => {
   AgentPet.say('agent-pet is running', { ttl: 3500 });
+  setFallbackSpeech('agent-pet is running');
   reportNow();
 }, 250);
 
-listen('pet:state', (event) => handleStateEvent(event.payload, AgentPet));
-listen('pet:play', (event) => handlePlayEvent(event.payload, AgentPet, registry));
+listen('pet:state', (event) => {
+  handleStateEvent(event.payload, AgentPet);
+  setFallbackState(event.payload?.state);
+});
+listen('pet:play', (event) => {
+  handlePlayEvent(event.payload, AgentPet, registry);
+  setFallbackState(event.payload?.action);
+});
 listen('pet:say', (event) => {
   handleSayEvent(event.payload, AgentPet);
+  setFallbackSpeech(event.payload?.text);
   setTimeout(() => reportNow(), 0);
 });
