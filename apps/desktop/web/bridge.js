@@ -11,6 +11,7 @@ const THRESHOLD = 2;
 let lastBounds = null;
 let registry = new Set(actionRegistry(launchConfig.manifest ?? launchConfig));
 let widgetApi = null;
+let widgetDragTarget = null;
 const diagnostics = [];
 
 function diagnose(message, detail) {
@@ -79,7 +80,11 @@ function widgetShadow() {
 }
 
 function widgetSprite() {
-  return widgetShadow()?.querySelector('[class*="sprite"], [data-agent-pet-sprite], img') ?? null;
+  return widgetShadow()?.querySelector('.ap-image, [data-agent-pet-sprite], img') ?? null;
+}
+
+function widgetSpriteHandle() {
+  return widgetShadow()?.querySelector('.ap-sprite') ?? null;
 }
 
 function hasRealWidgetSprite() {
@@ -89,6 +94,23 @@ function hasRealWidgetSprite() {
   if (r.width <= 0 || r.height <= 0) return false;
   const style = getComputedStyle(sprite);
   return style.backgroundImage !== 'none' || sprite.tagName === 'IMG';
+}
+
+function startWindowDrag(event) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  invoke('start_drag').catch(() => {});
+}
+
+function wireWidgetDrag() {
+  const handle = widgetSpriteHandle();
+  if (!handle || handle === widgetDragTarget) return;
+  if (widgetDragTarget) {
+    widgetDragTarget.removeEventListener('pointerdown', startWindowDrag, { capture: true });
+  }
+  widgetDragTarget = handle;
+  widgetDragTarget.addEventListener('pointerdown', startWindowDrag, { capture: true });
 }
 
 function syncFallbackVisibility() {
@@ -133,7 +155,7 @@ function resolveWidgetApi() {
 function inspectWidget(label) {
   const host = root()?.firstElementChild;
   const shadow = widgetShadow();
-  const sprite = widgetSprite() ?? shadow?.querySelector('.ap-image, span');
+  const sprite = widgetSprite() ?? shadow?.querySelector('span');
   const overlay = shadow?.querySelector('.ap-overlay');
   const spriteRect = sprite?.getBoundingClientRect();
   const overlayRect = overlay?.getBoundingClientRect();
@@ -206,12 +228,14 @@ function observeBounds() {
   const pet = findPetElement();
   if (pet) ro.observe(pet);
   const mo = new MutationObserver(() => queueMicrotask(() => {
+    wireWidgetDrag();
     syncFallbackVisibility();
     reportNow();
   }));
   mo.observe(root(), { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
   window.addEventListener('resize', () => reportNow());
   setTimeout(() => {
+    wireWidgetDrag();
     syncFallbackVisibility();
     reportNow();
   }, 0);
@@ -225,15 +249,14 @@ async function applyConfigAndReport() {
   await invoke('report_registry', { actions: [...registry] }).catch(() => {});
   diagnose('registry: reported', registry.size);
   hideWidgetStartupBubble();
+  wireWidgetDrag();
   syncFallbackVisibility();
   reportNow();
 }
 
 function wireDrag() {
-  root().addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return;
-    invoke('start_drag').catch(() => {});
-  });
+  root().addEventListener('pointerdown', startWindowDrag);
+  wireWidgetDrag();
 }
 
 seedDesktopConfig();
